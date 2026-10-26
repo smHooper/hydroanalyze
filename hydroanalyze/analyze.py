@@ -828,11 +828,3 @@ class HydroAnalyzer:
         fractional_flow.rename(columns=month_names, inplace=True)
 
         return self.ensure_annual_result_range(fractional_flow)
-    
-
-print('querying data')
-u = UsgsClient()
-rd = RiverData('15056210', Path('.'))
-xml_data = u.fetch_data('15056210')
-rd.load_from_xml(xml_data)
-h = HydroAnalyzer(rd)
