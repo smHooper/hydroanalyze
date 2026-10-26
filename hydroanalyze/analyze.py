@@ -94,7 +94,7 @@ class RiverData:
         self._incomplete_years = {}
 
 
-    def load_from_xml(self, xml_bytes: bytes) -> pd.DataFrame:
+    def load_from_xml(self, xml_bytes: bytes) -> Self:
         """
         Parse WaterML 1.1 XML data and load into a pandas DataFrame. The XML is 
         expected to contain time series data for a single site, with one or 
@@ -219,6 +219,11 @@ class RiverData:
         df["water_doy"] = (df.index - wy_start).dt.days + 1
 
         df['day_of_year'] = df.index.dayofyear
+
+        # Convert all columns to nullable Int64
+        water_year_cols = ['year', 'water_year', 'water_doy', 'day_of_year']
+        for col in water_year_cols:
+            df[col] = df[col].astype(INT_DTYPE)
 
         return self
 
@@ -416,7 +421,6 @@ class HydroAnalyzer:
 
     SECONDS_PER_DAY = 86400
 
-
     def __init__(self, river_data: RiverData):
         self.river = river_data
 
@@ -474,21 +478,35 @@ class HydroAnalyzer:
 
         self.check_variable()
 
+        # Resampler.mean() converts all numeric columns to float64, so record 
+        #   the original dtypes to restore later
+        dtypes = self.river.data.dtypes
+        integer_cols = dtypes.loc[
+            dtypes.astype(str).str.lower().str.startswith('int')
+        ].index
+
+        # Reduce data to one row per day by taking mean / day
+        daily_mean = self.river.data.resample('D').mean()
+
+        # Restore dtypes
+        for col in integer_cols:
+            if col in daily_mean.columns:
+                daily_mean[col] = daily_mean[col].astype(INT_DTYPE)
+
         # Discharge is an average of cubic feet per second, so to get total 
         #  volume in cubic feet, sum over the year by the number of seconds in
         #  a day 
         total = (
-            self.river.data.groupby('water_year').discharge_cfs.sum() * 
+            daily_mean.groupby('water_year').discharge_cfs.sum() * 
             self.SECONDS_PER_DAY
         )
 
-        # IF the user doesn't want to ignore incomplete years, set the 
+        # If the user wants to exclude years with incomplete data, set the 
         #   incomplete years to NA
-        if include_incomplete:
+        if not include_incomplete:
             total.loc[self.river.incomplete_years()['discharge_cfs']] = pd.NA
 
         return self.ensure_annual_result_range(total)
-
 
 
     def mean_discharge(self, include_incomplete: bool=False) -> pd.Series:
