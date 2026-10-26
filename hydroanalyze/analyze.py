@@ -555,21 +555,25 @@ class HydroAnalyzer:
         # Only consider values on or after the specified water day of year
         df = self.river.data.loc[self.river.data.water_doy >= after_water_doy]
 
-        max_values = df.groupby('water_year').get_group(variable).max()
-
+        max_values = df.groupby('water_year').max()[variable]
+        max_date = df.groupby('water_year').idxmax()[variable]
+        result = pd.DataFrame({
+            f'date_of_max_{variable}': max_date, 
+            f'max_{variable}': max_values
+        })
+        
         # If the user doesn't want to include incomplete years, set the 
         #   incomplete years to NA
         if not include_incomplete:
-            max_values.loc[self.river.incomplete_years()[variable]] = pd.NA
-
-        max_date = df.groupby('water_year').get_group(variable).idxmax()
-
+            incomplete_years = [
+                y for y in
+                self.river.incomplete_years().get(variable, [])
+                if y in result.index
+            ]
+            result.loc[incomplete_years] = pd.NA
 
         return self.ensure_annual_result_range(
-            pd.DataFrame({
-                f'date_of_max_{variable}': max_date, 
-                f'max_{variable}': max_values
-            })
+            result
         )
 
 
