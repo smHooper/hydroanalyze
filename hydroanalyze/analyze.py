@@ -5,15 +5,18 @@ import json
 import requests
 import pandas as pd
 from pathlib import Path
-from typing import Dict, List, Tuple, Optional
+from os import PathLike
+from typing import Dict, List, Tuple, Optional, Self
 import xml.etree.ElementTree as ET
 
+from utils.helpers import find_config, validate_config, get_noaa_data_path
 
 XML_SCHEMA = 'http://www.cuahsi.org/waterML/1.1/'
 NAMESPACES = {
     'wml': XML_SCHEMA, 
     'ns1': XML_SCHEMA
 }
+INT_DTYPE = 'Int64'
 
 
 # ==========================================================
@@ -48,11 +51,11 @@ class FileManager:
 class UsgsClient:
     BASE_URL = 'https://waterservices.usgs.gov/nwis/dv'
 
-    def fetch_data(self, site_number: str) -> bytes:
+    def fetch_data(self, gage_id: str) -> bytes:
         today = dt.date.today()
         params = {
             'format': 'waterml,1.1',
-            'sites': site_number,
+            'sites': gage_id,
             'startDT': '1851-01-01',
             'endDT': today.isoformat(),
         }
@@ -71,6 +74,7 @@ class RiverData:
     VARIABLE_MAP = {
         "00060": "discharge_cfs",
         "00010": "temp_c",
+        "HG"   : "stage_ft"
     }
 
     STAT_MAP = {
@@ -80,9 +84,9 @@ class RiverData:
     }
     WATER_YEAR_MONTHS = [10, 11, 12, 1, 2, 3, 4, 5, 6, 7, 8, 9]
 
-    def __init__(self, site_number: str, base_dir: Path):
+    def __init__(self, gage_id: str, base_dir: Path):
         self.site_name = None
-        self.site_number = site_number
+        self.gage_id = gage_id
         self.file_manager = FileManager(base_dir)
 
         self.data = pd.DataFrame()
@@ -164,6 +168,32 @@ class RiverData:
 
         self.data = df_wide
 
+        return self
+    
+
+    def load_noaa(self, data_dir:str | PathLike) -> Self:
+        """
+        Load NOAA data from a directory of text files processed with ingest_noaa.py.
+        """
+
+        data_dir = Path(data_dir)
+        if not data_dir.exists():
+            raise ValueError(f"Data directory {data_dir} does not exist.")
+
+        # Find the file. There should only be one per gage_id
+        gage_file = data_dir / f'{self.gage_id}.csv'
+        if not gage_file.exists():
+            raise ValueError(f"No NOAA data file found for gage {self.gage_id} in {data_dir}")
+        
+        df = (
+            pd.read_csv(gage_file, parse_dates=["Obstime"])
+                .sort_values("Obstime")
+                .pivot(index="Obstime", columns="PE", values="Value")
+                .rename(columns=self.VARIABLE_MAP)
+        )
+
+        self.data = df
+        
         return self
     
 
@@ -345,7 +375,7 @@ class RiverData:
 
         """
         self.directory = self.file_manager.ensure_directory(
-            self.site_name or self.site_number
+            self.site_name or self.gage_id
         )
 
         filename = self.directory / f'{self.site_name}_data.xml'
@@ -367,7 +397,7 @@ class RiverData:
             raise ValueError("No data loaded to save.")
 
         self.directory = self.file_manager.ensure_directory(
-            self.site_name or self.site_number
+            self.site_name or self.gage_id
         )
 
         filename = self.directory / f'{self.site_name}_data.csv'
@@ -475,20 +505,26 @@ class HydroAnalyzer:
         """
         total = self.total_discharge(include_incomplete=include_incomplete)
         
-        days = self.river.data.discharge_cfs.groupby('water_year').count()
+        days = self.river.data.groupby('water_year').discharge_cfs.count()
         mean_q = (total / (days * self.SECONDS_PER_DAY)).round(2)
 
         return self.ensure_annual_result_range(mean_q)
     
 
-    def max_discharge(self, include_incomplete: bool=False, after_water_doy: int=1) -> pd.DataFrame:
+    def max(
+            self, 
+            variable: str, 
+            include_incomplete: bool=False, 
+            after_water_doy: int=1
+        ) -> pd.DataFrame:
         """
-        Returns the maximum discharge for each water year
+        Returns the maximum value for the specified variable for each water year
 
+        :param str variable: The variable for which to find the maximum
         :param bool include_incomplete: If True, water years with incomplete 
             data will still be included. If False, incomplete years will be set 
             to NaN.
-        :param int after_water_doy: Only consider discharge values on or after 
+        :param int after_water_doy: Only consider values on or after 
             this water day of year (e.g. to exclude early season peaks) 
             Defaults to 1
         :returns: DataFrame with columns 'max_discharge_cfs' and 
@@ -496,25 +532,25 @@ class HydroAnalyzer:
         :rtype: pandas.DataFrame
         """
 
-        self.check_variable()
+        self.check_variable(variable)
 
         # Only consider values on or after the specified water day of year
         df = self.river.data.loc[self.river.data.water_doy >= after_water_doy]
 
-        max_discharge = df.groupby('water_year').discharge_cfs.max()
+        max_values = df.groupby('water_year').get_group(variable).max()
 
         # If the user doesn't want to include incomplete years, set the 
         #   incomplete years to NA
         if not include_incomplete:
-            max_discharge.loc[self.river.incomplete_years()['discharge_cfs']] = pd.NA
+            max_values.loc[self.river.incomplete_years()[variable]] = pd.NA
 
-        max_date = df.groupby('water_year').discharge_cfs.idxmax()
+        max_date = df.groupby('water_year').get_group(variable).idxmax()
 
 
         return self.ensure_annual_result_range(
             pd.DataFrame({
-                'date_of_max_discharge': max_date, 
-                'max_discharge_cfs': max_discharge
+                f'date_of_max_{variable}': max_date, 
+                f'max_{variable}': max_values
             })
         )
 
@@ -601,7 +637,10 @@ class HydroAnalyzer:
         return result
 
 
-    def spring_pulse(self) -> pd.DataFrame:
+    def spring_pulse(
+            self, 
+            variable: Optional[str]='discharge_cfs'
+        ) -> pd.DataFrame:
         """
         Calculate spring pulse onset date for each water year using
         Stewart et al. (2005) cumulative departure method.
@@ -611,7 +650,7 @@ class HydroAnalyzer:
         :rtype: pandas.DataFrame
         """
 
-        self.check_variable()
+        self.check_variable(variable)
 
         required_cols = {"water_year", "water_doy"}
         if not required_cols.issubset(self.river.data.columns):
@@ -623,14 +662,14 @@ class HydroAnalyzer:
 
         for wy, group in self.river.data.groupby("water_year"):
 
-            # Restrict to WY day 9–248
+            # Restrict to day of calendar year 9–248
             subset = group[
                 (group["day_of_year"] >= 9) &
                 (group["day_of_year"] <= 248)
             ].copy()
 
             # Skip incomplete years
-            if subset.empty or subset["discharge_cfs"].isna().any():
+            if subset.empty or subset[variable].isna().any():
                 results.append({
                     "water_year": wy,
                     "spring_pulse_doy": pd.NA,
@@ -639,10 +678,10 @@ class HydroAnalyzer:
                 continue
 
             # Mean discharge over window
-            mean_q = subset["discharge_cfs"].mean()
+            mean_q = subset[variable].mean()
 
             # Daily departures
-            subset["departure"] = subset["discharge_cfs"] - mean_q
+            subset["departure"] = subset[variable] - mean_q
 
             # Cumulative departure
             subset["cum_departure"] = subset["departure"].cumsum()

@@ -6,6 +6,7 @@ Create date: 2026-10-21
 Contact: samuel_hooper@nps.gov
 """
 
+import json
 from pathlib import Path
 from os import PathLike
 from typing import Optional
@@ -52,3 +53,18 @@ def validate_config(
         )
     
     return is_valid
+
+
+def get_noaa_data_path(config:Optional[dict]={}) -> Path:
+    """
+    Get the NOAA data path from the config
+    """
+    # If the config is empty, try to find it
+    if len(config.keys()) == 0:
+        config_path = find_config()
+        with open(config_path, 'r') as f:
+            config = json.load(f)
+    
+    validate_config(config, ['NOAA_DATA_PATH'])
+    
+    return Path(config['NOAA_DATA_PATH']).resolve()
