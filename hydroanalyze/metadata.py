@@ -26,7 +26,7 @@ class Metadata:
     source: ClassVar[str] = "unknown"
 
     gage_id: str
-    site_name: str | None = None
+    gage_name: str | None = None
     latitude: float | None = None
     longitude: float | None = None
     timezone: str | None = None
@@ -176,7 +176,7 @@ class USGSMetadata(Metadata):
         
         site_properties = site['properties']
         meta = {
-            "site_name":    site.get("site_name"),
+            "gage_name":    site.get("site_name"),
             "gage_id":      site.get("site_code") or gage_id,
             "latitude":     site.get("latitude"),
             "longitude":    site.get("longitude"),
@@ -207,7 +207,7 @@ class NOAAMetadata(Metadata):
     def from_api(cls, raw: dict, gage_id: str) -> NOAAMetadata:
         return cls(
             gage_id=gage_id,
-            site_name=raw.get("name"),
+            gage_name=raw.get("name"),
             latitude=raw.get("latitude"),
             longitude=raw.get("longitude"),
             usgs_id=raw.get("usgsId"),
