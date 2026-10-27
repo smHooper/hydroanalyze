@@ -21,6 +21,7 @@ stored records that are absent from the new file.
 
 Run as a module (the relative import requires it), e.g.:
     python -m utils.ingest_noaa /path/to/nws/files --dry-run
+or use the root-level wrapper hydroanalyze/ingest_noaa_cli.py
 
 Author: Sam Hooper
 Create date: 2026-10-21
@@ -43,7 +44,9 @@ from typing import Iterable, Optional
 import numpy as np
 import pandas as pd
 
-from .helpers import find_config, validate_config
+from utils.helpers import find_config, validate_config
+from clients import NOAAClient
+from metadata import ensure_noaa_metadata
 
 DATA_STORAGE_CONFIG_PROP = 'NOAA_DATA_PATH'
 COLUMNS = ['LID', 'Obstime', 'PE', 'Value']
@@ -89,7 +92,7 @@ def find_files(
     return matched, skipped
 
 
-def read_nws_file(file_path: Path, comment_char: Optional[str]) -> pd.DataFrame:
+def read_noaa_file(file_path: Path, comment_char: Optional[str]) -> pd.DataFrame:
     """
     Read one NWS file into a validated DataFrame with COLUMNS.
 
@@ -336,7 +339,7 @@ def ingest(
     for file_path in matched:
         log.info('Processing %s', file_path)
         try:
-            df = read_nws_file(file_path, comment_char)
+            df = read_noaa_file(file_path, comment_char)
         except ValueError as e:
             log.error('%s: %s', file_path, e)
             bad_files.append(file_path)
@@ -403,6 +406,20 @@ def ingest(
     # --- write ---------------------------------------------------------
     for gage_id, p in plans.items():
         changed = p['changed']
+        
+        # Get metadata, but don't save just yet. If this is a dry run, save 
+        #   shouldn't happen at all
+        metadata = ensure_noaa_metadata(
+            gage_id, 
+            storage_dir, 
+            log=log,
+            refresh=True,
+            write_file=False,
+        )
+        metadata_retrieved = metadata is not None and metadata.raw
+        if not metadata_retrieved:
+            log.warning('Metadata not retrieved for %s', gage_id)
+
         if not dry_run:
             if not changed.empty:
                 backup = archive_dir / f'{gage_id}_{run_stamp}.csv'
@@ -416,7 +433,14 @@ def ingest(
                     '%s: overwrote %d records (old file backed up to %s)',
                     gage_id, len(changed), backup
                 )
-            write_csv_atomic(p['merged'], p['path'])
+            csv_path = p['path']
+            write_csv_atomic(p['merged'], csv_path)
+
+            # Only save the metadata if it's actually been fetched (.raw is a 
+            #   dictionary with the raw NOAA metadata)
+            if metadata_retrieved:
+                metadata.save(csv_path.parent)
+
         elif not changed.empty:
             log.warning('%s: would overwrite %d records', gage_id, len(changed))
 
