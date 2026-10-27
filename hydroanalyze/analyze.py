@@ -9,7 +9,11 @@ from os import PathLike
 from typing import Dict, List, Tuple, Optional, Self
 import xml.etree.ElementTree as ET
 
-from utils.helpers import find_config, validate_config, get_noaa_data_path
+from utils.helpers import (
+    find_config, 
+    get_noaa_data_path,
+    validate_config
+)
 
 XML_SCHEMA = 'http://www.cuahsi.org/waterML/1.1/'
 NAMESPACES = {
@@ -588,7 +592,7 @@ class HydroAnalyzer:
         Calculate monthly statistics for a given variable.
 
         :param str variable: Column name (e.g. 'discharge_cfs', 'temp_mean')
-        :param str stat: 'mean', 'max', or 'min'
+        :param str stat: 'mean', 'max', 'min', 'median', or 'all'
         :param bool include_incomplete: If False, incomplete months are set 
             to NA
         :param bool pivot: If True, returns water_year x month matrix.
@@ -604,9 +608,10 @@ class HydroAnalyzer:
             "temp_c_mean",
             "temp_c_min",
             "temp_c_max",
+            "stage_ft"
         }
 
-        valid_stats = {"mean", "min", "max"}
+        valid_stats = {"mean", "min", "max", "median", "all"}
 
         if variable not in valid_vars:
             raise ValueError(
@@ -632,6 +637,10 @@ class HydroAnalyzer:
             result = grouped.max()
         elif stat == "min":
             result = grouped.min()
+        elif stat == "median":
+            result = grouped.median()
+        elif stat == "all":
+            result = grouped.agg(["mean", "max", "min", "median"])
 
         # --- Handle incomplete months ---
         if not include_incomplete:
@@ -640,7 +649,7 @@ class HydroAnalyzer:
 
         result = result.rename(f"{variable}_{stat}")
 
-        if not pivot:
+        if stat == "all" or not pivot:
             return result.reset_index()
 
         # Pivot to water_year x month matrix
@@ -773,8 +782,8 @@ class HydroAnalyzer:
             centers_of_mass[water_year] = center_date
 
         return self.ensure_annual_result_range(
-                pd.DataFrame({'center_of_mass': centers_of_mass})
-            )
+            pd.DataFrame({'center_of_mass': centers_of_mass})
+        )
     
     
     
