@@ -9,24 +9,23 @@ from os import PathLike
 from typing import Dict, List, Tuple, Optional, Self
 import xml.etree.ElementTree as ET
 
-from utils.helpers import (
-    find_config, 
-    get_noaa_data_path,
-    validate_config
+from clients import (
+    NOAAClient,
+    USGSClient
+)
+from metadata import (
+    ensure_noaa_metadata,
+    Metadata,
+    USGSMetadata,
+    XML_NAMESPACES
 )
 
-XML_SCHEMA = 'http://www.cuahsi.org/waterML/1.1/'
-NAMESPACES = {
-    'wml': XML_SCHEMA, 
-    'ns1': XML_SCHEMA
-}
 INT_DTYPE = 'Int64'
 
 
 # ==========================================================
 # File Management
 # ==========================================================
-
 class FileManager:
     def __init__(self, base_dir: Path):
         self.base_dir = base_dir
@@ -47,32 +46,9 @@ class FileManager:
         return new_path
 
 
-
-# ==========================================================
-# USGS Client
-# ==========================================================
-
-class UsgsClient:
-    BASE_URL = 'https://waterservices.usgs.gov/nwis/dv'
-
-    def fetch_data(self, gage_id: str) -> bytes:
-        today = dt.date.today()
-        params = {
-            'format': 'waterml,1.1',
-            'sites': gage_id,
-            'startDT': '1851-01-01',
-            'endDT': today.isoformat(),
-        }
-
-        response = requests.get(self.BASE_URL, params=params)
-        response.raise_for_status()
-        return response.content
-
-    
 # ==========================================================
 # River Data Model
 # ==========================================================
-
 class RiverData:
 
     VARIABLE_MAP = {
@@ -89,13 +65,20 @@ class RiverData:
     WATER_YEAR_MONTHS = [10, 11, 12, 1, 2, 3, 4, 5, 6, 7, 8, 9]
 
     def __init__(self, gage_id: str, base_dir: Path):
-        self.site_name = None
-        self.gage_id = gage_id
+        self.gage_name: str | None = None
+        self.gage_id: str = gage_id
+        self._metadata: Metadata | None = {}
         self.file_manager = FileManager(base_dir)
 
         self.data = pd.DataFrame()
         self._record_ranges = pd.DataFrame()
         self._incomplete_years = {}
+
+
+    @property
+    def metadata(self) -> dict:
+        """Metadata for the loaded data (site, query, variables)."""
+        return self._metadata
 
 
     def load_from_xml(self, xml_bytes: bytes) -> Self:
@@ -112,15 +95,15 @@ class RiverData:
         :rtype: RiverData 
         """
 
-        ns = {"ns1": XML_SCHEMA} # define namespace for parsing XML
+        ns = XML_NAMESPACES
         root = ET.fromstring(xml_bytes)
+
+        self._metadata = USGSMetadata.from_xml(root)
+        self.gage_name = self.metadata.gage_name
 
         rows = []
         variable_names = {}
         for ts in root.findall(".//ns1:timeSeries", ns):
-
-            # Should only be one site queried at a time, so we can set the site name here
-            self.site_name = ts.findtext(".//ns1:siteCode", namespaces=ns)
             
             code = ts.findtext(".//ns1:variableCode", namespaces=ns)
             variable_name = ts.findtext(".//ns1:variableName", namespaces=ns)
@@ -141,6 +124,8 @@ class RiverData:
                     "value": value,
                     "nodata_value": nodata_value,
                 })
+
+        
 
         df = pd.DataFrame(rows)
 
@@ -189,6 +174,10 @@ class RiverData:
         if not gage_file.exists():
             raise ValueError(f"No NOAA data file found for gage {self.gage_id} in {data_dir}")
         
+        # Get gage name from metadata
+        self._metadata = ensure_noaa_metadata(self.gage_id, data_dir)
+        self.gage_name = self.metadata.gage_name
+
         df = (
             pd.read_csv(gage_file, parse_dates=["Obstime"])
                 .sort_values("Obstime")
@@ -384,10 +373,10 @@ class RiverData:
 
         """
         self.directory = self.file_manager.ensure_directory(
-            self.site_name or self.gage_id
+            self.gage_name or self.gage_id
         )
 
-        filename = self.directory / f'{self.site_name}_data.xml'
+        filename = self.directory / f'{self.gage_name}_data.xml'
         filename = self.file_manager.unique_filename(filename)
 
         filename.write_bytes(xml_bytes)
@@ -406,10 +395,10 @@ class RiverData:
             raise ValueError("No data loaded to save.")
 
         self.directory = self.file_manager.ensure_directory(
-            self.site_name or self.gage_id
+            self.gage_name or self.gage_id
         )
 
-        filename = self.directory / f'{self.site_name}_data.csv'
+        filename = self.directory / f'{self.gage_name}_data.csv'
         filename = self.file_manager.unique_filename(filename)
 
         self.data.to_csv(filename)
