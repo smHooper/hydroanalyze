@@ -22,13 +22,54 @@ app = typer.Typer(
 
 
 class Metric(str, Enum):
-    total_discharge = "total-discharge"
-    mean_discharge = "mean-discharge"
-    max = "max"
-    monthly = "monthly"
-    spring_pulse = "spring-pulse"
-    center_of_mass = "center-of-mass"
-    fractional_monthly = "fractional-monthly"
+    """CLI-facing analyses. Value is what the user types."""
+
+    description: str
+    options: tuple[str, ...]
+
+    def __new__(cls, value: str, description: str, options: tuple[str, ...] = ()):
+        obj = str.__new__(cls, value)
+        obj._value_ = value
+        obj.description = description
+        obj.options = options
+        return obj
+
+    total_discharge = (
+        "total-discharge",
+        "Total volume of water passing the gage each water year, in cubic feet.",
+        ("--include-incomplete",),
+    )
+    mean_discharge = (
+        "mean-discharge",
+        "Mean annual discharge for each water year, in cubic feet per second.",
+        ("--include-incomplete",),
+    )
+    max = (
+        "max",
+        "Peak value and date of the peak for each water year (default: discharge).",
+        ("--variable", "--include-incomplete"),
+    )
+    monthly = (
+        "monthly",
+        "Monthly mean, min, max, or median for each water year (Oct-Sep).",
+        ("--variable", "--stat", "--include-incomplete"),
+    )
+    spring_pulse = (
+        "spring-pulse",
+        "Onset date of the spring snowmelt pulse each water year "
+        "(Stewart et al. 2005 cumulative departure method).",
+        ("--variable",),
+    )
+    center_of_mass = (
+        "center-of-mass",
+        "Date by which half of the water year's flow has passed (flow-weighted "
+        "center of the hydrograph). Complete years only.",
+    )
+    fractional_monthly = (
+        "fractional-monthly",
+        "Each month's share of the water year's total flow, as a percentage.",
+        ("--include-incomplete",),
+    )
 
 
 def _load(
@@ -99,8 +140,8 @@ def fetch(
 
 @app.command()
 def analyze(
-    gage_id: str = typer.Argument(..., help="USGS/NOAA gage ID"),
-    metric: Metric = typer.Argument(..., help="Which analysis to run"),
+    gage_id: str = typer.Argument(..., metavar="GAGE ID", help="USGS/NOAA gage ID"),
+    metric: Metric = typer.Argument(..., metavar="METRIC", help="The analysis to run"),
     out: Path = typer.Option(Path("hydroanalyze_output"), help="Output folder"),
     include_incomplete: bool = typer.Option(
         False, "--include-incomplete", help="Keep water years with missing days"
@@ -140,9 +181,15 @@ def analyze(
 
 @app.command()
 def metrics():
-    """List the available analyses."""
+    """
+    List the available analyses and the options each one accepts.
+    """
+    width = max(len(m.value) for m in Metric)
     for m in Metric:
-        typer.echo(f"  {m.value}")
+        typer.secho(f"{m.value:<{width}}", fg=typer.colors.CYAN, bold=True, nl=False)
+        typer.echo(f"  {m.description}")
+        if m.options:
+            typer.echo(f"{'':<{width}}  Options: {', '.join(m.options)}")
 
 
 if __name__ == "__main__":
