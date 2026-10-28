@@ -95,12 +95,19 @@ def _load(
                         fg=typer.colors.RED, err=True)
             raise typer.Exit(1)
 
-        river = RiverData(gage_id, out_dir).load_from_xml(xml)
+        try:
+            river = RiverData(gage_id, out_dir).load_from_xml(xml)
+        except ValueError:
+            typer.secho(
+                f"No timeseries data found for gage ID {gage_id}",
+                fg=typer.colors.RED, err=True
+            )
+            raise typer.Exit(1)
     else:
         noaa_data_dir = get_noaa_data_path()
         try:
             river = RiverData(gage_id, out_dir).load_noaa(noaa_data_dir)
-        except FileNotFoundError:
+        except ValueError, FileNotFoundError:
             typer.secho(f"Could not find NOAA data for gage {gage_id}. "
                         "Please download the data from NOAA and place it in the output directory.",
                         fg=typer.colors.RED, err=True)
