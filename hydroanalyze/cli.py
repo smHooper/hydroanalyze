@@ -67,6 +67,7 @@ def _load(
         xml = None  # NOAA data does not come in XML format
         
     river.get_water_year()
+    
     return river, xml
 
 
@@ -77,7 +78,11 @@ def fetch(
     is_noaa: bool = typer.Option(False, "--noaa", help="Search for NOAA gage data instead of USGS"),
     show_metadata: bool = typer.Option(False, "--show-metadata", help="Show metadata in the console")
 ):
-    """Fetch data for a gage and save the raw XML (if USGS) and a CSV."""
+    """
+    Fetch data for a gage and save the raw XML (if USGS) and a CSV. 
+    Alternatively use the --show-metadata flag to just display the gage's 
+    metadata
+    """
     river, xml = _load(gage_id, out, is_usgs=not is_noaa)
 
     if show_metadata:
@@ -104,7 +109,11 @@ def analyze(
     variable: str = typer.Option("discharge_cfs", help="Column to analyze (max/monthly)"),
     stat: str = typer.Option("mean", help="mean, min, max, median, all (monthly only)"),
 ):
-    """Run an analysis and save the result as CSV."""
+    """
+    Run an analysis and save the result as CSV. All metrics return an annual 
+    result for the entire period of record except for 'monthly' and 
+    'fractional_monthly'
+    """
     river, _ = _load(gage_id, out)
     h = HydroAnalyzer(river)
 
