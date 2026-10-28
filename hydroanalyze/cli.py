@@ -118,8 +118,12 @@ def info(
     gage_id: str = typer.Argument(..., metavar="GAGE_ID", help="USGS/NOAA gage ID"),
     out: Path = typer.Option(Path("hydroanalyze_output"), help="Output folder"),
 ):
-    """Show the period of record and incomplete water years for a gage."""
+    """
+    Show the metadata, period of record, and incomplete water years for a gage.
+    """
+    
     river, _ = _load(gage_id, out)
+    typer.echo(river.metadata.pretty_print())
     typer.echo(river.data_ranges().to_string())
     for col, years in river.incomplete_years().items():
         if col == 'year':
