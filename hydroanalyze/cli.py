@@ -76,16 +76,25 @@ class Metric(str, Enum):
 def _load(
         gage_id: str, 
         out_dir: Path, 
-        is_usgs: Optional[bool]=False
+        data_source: str | None = None
     ) -> tuple[RiverData, bytes]:
 
-    if is_usgs or gage_id.isdigit():
+    # If the user didn't supply the --data_source flag, infer if it's USGS or 
+    #   NOAA by the gage ID pattern - USGS uses all numbers but NOAA uses 
+    #   letters and numbers
+    use_usgs = (
+        gage_id.isdigit() 
+        if data_source is None 
+        else str(data_source).lower() == 'usgs'
+    )
+    
+    if use_usgs:
         try:
             xml = USGSClient().fetch_data(gage_id)
         except requests.HTTPError as e:
             typer.secho(
-                f"USGS rejected the request for gage {gage_id}: {e}." +  
-                " If this is a NOAA gage, use the --noaa flag.",
+                f"USGS rejected the request for gage {gage_id}: {e}."  
+                " If this is a NOAA gage, use the --data-source NOAA option.",
                 fg=typer.colors.RED, 
                 err=True
             )
@@ -122,14 +131,26 @@ def _load(
 
 @app.command()
 def info(
-    gage_id: str = typer.Argument(..., metavar="GAGE_ID", help="USGS/NOAA gage ID"),
-    out: Path = typer.Option(Path("hydroanalyze_output"), help="Output folder"),
+    gage_id: str = typer.Argument(
+        ..., 
+        metavar="GAGE_ID", 
+        help="USGS/NOAA gage ID"
+    ),
+    out: Path = typer.Option(
+        Path("./hydroanalyze_output"), 
+        help="Output folder"
+    ),
+    data_source: str | None = typer.Option(
+        None, 
+        "--data-source", 
+        help="Search for gage data from the specified source. Options: NOAA, USGS"
+    ),
 ):
     """
     Show the metadata, period of record, and incomplete water years for a gage.
     """
     
-    river, _ = _load(gage_id, out)
+    river, _ = _load(gage_id, out, data_source)
     typer.echo(river.metadata.pretty_print())
     typer.echo(river.data_ranges().to_string())
     for col, years in river.incomplete_years().items():
@@ -150,10 +171,10 @@ def fetch(
         Path("hydroanalyze_output"), 
         help="Output folder"
     ),
-    is_noaa: bool = typer.Option(
-        False, 
-        "--noaa", 
-        help="Search for NOAA gage data instead of USGS"
+    data_source: str | None = typer.Option(
+        None, 
+        "--data-source", 
+        help="Search for gage data from the specified source. Options: NOAA, USGS"
     ),
     show_metadata: bool = typer.Option(
         False, 
@@ -166,7 +187,11 @@ def fetch(
     Alternatively use the --show-metadata flag to just display the gage's 
     metadata
     """
-    river, xml = _load(gage_id, out, is_usgs=not is_noaa)
+    river, xml = _load(
+        gage_id, 
+        out, 
+        data_source
+    )
 
     if show_metadata:
         typer.echo(river.metadata.pretty_print())
@@ -196,6 +221,11 @@ def analyze(
     out: Path = typer.Option(
         Path("./hydroanalyze_output"), 
         help="Output folder"
+    ),
+    data_source: str | None = typer.Option(
+        None, 
+        "--data-source", 
+        help="Search for gage data from the specified source. Options: NOAA, USGS"
     ),
     include_incomplete: bool = typer.Option(
         False, 
@@ -235,7 +265,7 @@ def analyze(
     result for the entire period of record except for 'monthly' and 
     'fractional-monthly'
     """
-    river, _ = _load(gage_id, out)
+    river, _ = _load(gage_id, out, data_source)
     h = HydroAnalyzer(river)
 
     try:
