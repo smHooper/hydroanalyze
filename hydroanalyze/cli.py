@@ -114,10 +114,24 @@ def _load(
 
 @app.command()
 def fetch(
-    gage_id: str = typer.Argument(..., help="USGS/NOAA gage ID, e.g. 09085100"),
-    out: Path = typer.Option(Path("hydroanalyze_output"), help="Output folder"),
-    is_noaa: bool = typer.Option(False, "--noaa", help="Search for NOAA gage data instead of USGS"),
-    show_metadata: bool = typer.Option(False, "--show-metadata", help="Show metadata in the console")
+    gage_id: str = typer.Argument(
+        ..., 
+        help="USGS/NOAA gage ID, e.g. 09085100"
+    ),
+    out: Path = typer.Option(
+        Path("hydroanalyze_output"), 
+        help="Output folder"
+    ),
+    is_noaa: bool = typer.Option(
+        False, 
+        "--noaa", 
+        help="Search for NOAA gage data instead of USGS"
+    ),
+    show_metadata: bool = typer.Option(
+        False, 
+        "--show-metadata", 
+        help="Show metadata in the console"
+    )
 ):
     """
     Fetch data for a gage and save the raw XML (if USGS) and a CSV. 
@@ -140,14 +154,34 @@ def fetch(
 
 @app.command()
 def analyze(
-    gage_id: str = typer.Argument(..., metavar="GAGE ID", help="USGS/NOAA gage ID"),
-    metric: Metric = typer.Argument(..., metavar="METRIC", help="The analysis to run"),
-    out: Path = typer.Option(Path("hydroanalyze_output"), help="Output folder"),
-    include_incomplete: bool = typer.Option(
-        False, "--include-incomplete", help="Keep water years with missing days"
+    gage_id: str = typer.Argument(
+        ..., 
+        metavar="GAGE ID",
+        help="USGS/NOAA gage ID"
     ),
-    variable: str = typer.Option("discharge_cfs", help="Column to analyze (max/monthly)"),
-    stat: str = typer.Option("mean", help="mean, min, max, median, all (monthly only)"),
+    metric: Metric = typer.Argument(
+        ..., 
+        metavar="METRIC",
+        help="Analysis to run. Use 'hydroanalyze metrics' to list them."
+    ),
+    # Optional args
+    out: Path = typer.Option(
+        Path("hydroanalyze_output"), 
+        help="Output folder"
+    ),
+    include_incomplete: bool = typer.Option(
+        False, 
+        "--include-incomplete", 
+        help="Keep water years with missing days"
+    ),
+    variable: str = typer.Option(
+        "discharge_cfs", 
+        help="Column to analyze (max/monthly)"
+    ),
+    stat: str = typer.Option(
+        "mean", 
+        help="mean, min, max, median, all (monthly only)"
+    ),
 ):
     """
     Run an analysis and save the result as CSV. All metrics return an annual 
