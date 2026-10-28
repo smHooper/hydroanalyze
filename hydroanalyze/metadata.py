@@ -81,6 +81,26 @@ class Metadata:
         )
 
         return path
+    
+
+    def pretty_print(self, all: Optional[bool]=False) -> str:
+        
+        fetched_date = dt.datetime.fromisoformat(self.fetched_at)\
+            .strftime('%B %d, %Y %I:%M %p')
+
+        if all:
+            return json.dumps(self.as_dict(), indent=4)
+        else:
+            return (
+                'Hydroanalyze Metadata\n'
+                '~~~~~~~~~~~~~~~~~~~~~~~\n'
+                f'Gage Name:    {self.gage_name}\n'
+                f'Gage ID:      {self.gage_id}\n'
+                f'Source:       {self.source}\n'
+                f'Coordinates:  {self.latitude}, {self.longitude}\n'
+                f'Time Zone:    {self.timezone}\n'
+                f'As of:        {fetched_date}\n'
+            )
 
 
     @classmethod

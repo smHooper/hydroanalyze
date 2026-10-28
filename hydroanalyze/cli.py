@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from enum import Enum
-import json
 from pathlib import Path
 from typing import Optional
 import requests
@@ -81,7 +80,7 @@ def fetch(
     river, xml = _load(gage_id, out, is_usgs=not is_noaa)
 
     if show_metadata:
-        typer.echo(json.dumps(river.metadata.to_json()))
+        typer.echo(river.metadata.prett_print())
         raise typer.Exit(code=0)
     
     if xml:
