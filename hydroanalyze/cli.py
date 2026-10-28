@@ -7,11 +7,12 @@ import requests
 import typer
 import xml.etree.ElementTree as ET
 
-from analyze import HydroAnalyzer, RiverData, USGSClient
-from metadata import (
-    ensure_noaa_metadata,
-    USGSMetadata
+from analyze import (
+    HydroAnalyzer, 
+    RiverData, 
+    USGSClient
 )
+from metadata import ensure_noaa_metadata
 from utils.helpers import get_noaa_data_path
 
 app = typer.Typer(
@@ -47,12 +48,12 @@ class Metric(str, Enum):
     max = (
         "max",
         "Peak value and date of the peak for each water year (default: discharge).",
-        ("--variable", "--include-incomplete"),
+        ("--variable", "--include-incomplete", "--after-water-doy"),
     )
     monthly = (
         "monthly",
         "Monthly mean, min, max, or median for each water year (Oct-Sep).",
-        ("--variable", "--stat", "--include-incomplete"),
+        ("--variable", "--stat", "--include-incomplete", "--long"),
     )
     spring_pulse = (
         "spring-pulse",
@@ -68,7 +69,7 @@ class Metric(str, Enum):
     fractional_monthly = (
         "fractional-monthly",
         "Each month's share of the water year's total flow, as a percentage.",
-        ("--include-incomplete",),
+        ("--include-incomplete", "--calendar-order"),
     )
 
 
@@ -152,7 +153,7 @@ def fetch(
     typer.echo(f"Saved {csv_path.resolve()}")
 
 
-@app.command()
+@app.command(epilog="Metrics: " + ", ".join(m.value for m in Metric))
 def analyze(
     gage_id: str = typer.Argument(
         ..., 
@@ -166,13 +167,13 @@ def analyze(
     ),
     # Optional args
     out: Path = typer.Option(
-        Path("hydroanalyze_output"), 
+        Path("./hydroanalyze_output"), 
         help="Output folder"
     ),
     include_incomplete: bool = typer.Option(
         False, 
         "--include-incomplete", 
-        help="Keep water years with missing days"
+        help="Keep water years/months with missing days"
     ),
     variable: str = typer.Option(
         "discharge_cfs", 
@@ -180,27 +181,72 @@ def analyze(
     ),
     stat: str = typer.Option(
         "mean", 
-        help="mean, min, max, median, all (monthly only)"
+        help="mean, min, max, median, all. Only valid for 'monthly' metric"
+    ),
+    after_water_doy: int = typer.Option(
+        1, 
+        "--after-water-doy", 
+        min=1, 
+        max=366,
+        help="Only consider values on/after this water day of year ('max'" 
+        " command only)",
+    ),
+    long_format: bool = typer.Option(
+        False, 
+        "--long", 
+        help="Long format instead of a water year x month table ('monthly' only)",
+    ),
+    calendar_order: bool = typer.Option(
+        False, 
+        "--calendar-order", 
+        help="Use calendar month order Jan-Dec instead of water year Oct-Sep"
+            " ('fractional-monthly only')",
     ),
 ):
     """
     Run an analysis and save the result as CSV. All metrics return an annual 
     result for the entire period of record except for 'monthly' and 
-    'fractional_monthly'
+    'fractional-monthly'
     """
     river, _ = _load(gage_id, out)
     h = HydroAnalyzer(river)
 
     try:
         runners = {
-            Metric.total_discharge: lambda: h.total_discharge(include_incomplete),
-            Metric.mean_discharge: lambda: h.mean_discharge(include_incomplete),
-            Metric.max: lambda: h.max(variable, include_incomplete),
-            Metric.monthly: lambda: h.monthly_stat(variable, stat, include_incomplete),
-            Metric.spring_pulse: lambda: h.spring_pulse(variable),
-            Metric.center_of_mass: h.center_of_mass,
-            Metric.fractional_monthly: lambda: h.fractional_monthly_flow(include_incomplete),
+            Metric.total_discharge: lambda: 
+                h.total_discharge(include_incomplete),
+            
+            Metric.mean_discharge: lambda: 
+                h.mean_discharge(include_incomplete),
+            
+            Metric.max: lambda: 
+                h.max(
+                    variable, 
+                    include_incomplete, 
+                    after_water_doy
+                ),
+            
+            Metric.monthly: lambda: 
+                h.monthly_stat(
+                    variable, 
+                    stat, 
+                    include_incomplete,
+                    pivot=not long_format
+                ),
+            
+            Metric.spring_pulse: lambda: 
+                h.spring_pulse(variable),
+            
+            Metric.center_of_mass: 
+                h.center_of_mass,
+            
+            Metric.fractional_monthly: lambda: 
+                h.fractional_monthly_flow(
+                    include_incomplete,
+                    use_calendar_year=calendar_order
+                ),
         }
+
         result = runners[metric]()
     except ValueError as e:        # your API already raises clear ValueErrors
         typer.secho(f"Error: {e}", fg=typer.colors.RED, err=True)
