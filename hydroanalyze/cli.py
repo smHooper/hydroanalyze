@@ -86,7 +86,7 @@ def fetch(
     river, xml = _load(gage_id, out, is_usgs=not is_noaa)
 
     if show_metadata:
-        typer.echo(river.metadata.prett_print())
+        typer.echo(river.metadata.pretty_print())
         raise typer.Exit(code=0)
     
     if xml:
