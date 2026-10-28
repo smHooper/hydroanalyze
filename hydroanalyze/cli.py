@@ -282,10 +282,16 @@ def metrics():
     """
     width = max(len(m.value) for m in Metric)
     for m in Metric:
-        typer.secho(f"{m.value:<{width}}", fg=typer.colors.CYAN, bold=True, nl=False)
+        typer.secho(
+            f"\n{m.value:<{width}}", 
+            fg=typer.colors.BRIGHT_YELLOW, 
+            bold=True, 
+            nl=False
+        )
         typer.echo(f"  {m.description}")
         if m.options:
-            typer.echo(f"{'':<{width}}  Options: {', '.join(m.options)}")
+            typer.secho(f"{'':<{width}}  Options: ", fg=typer.colors.CYAN, nl=False)
+            typer.secho(", ".join(m.options), fg=typer.colors.BRIGHT_CYAN)
 
 
 if __name__ == "__main__":
