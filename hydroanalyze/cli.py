@@ -91,11 +91,10 @@ def fetch(
     
     if xml:
         xml_path = river.save_xml(xml)
+        typer.echo(f"Saved {xml_path.resolve()}")
     
     csv_path = river.to_csv()
-
-    typer.echo(f"Saved {xml_path}")
-    typer.echo(f"Saved {csv_path}")
+    typer.echo(f"Saved {csv_path.resolve()}")
 
 
 @app.command()
