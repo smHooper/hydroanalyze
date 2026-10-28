@@ -60,21 +60,12 @@ class Metadata:
         self.fetched_at = dt.datetime.now(dt.timezone.utc).isoformat()
 
 
-    def save(
-            self, 
-            data_dir: str | PathLike, 
-            filename: Optional[str]=None
-        ) -> Path:
-        
-        # Use filename if given. Otherwise use the default {gage_id}_meta.json
-        path = (
-            Path(data_dir) / filename 
-            if filename 
-            else self.path_for(data_dir, self.gage_id)
-        )
-
+    def save(self, data_dir: str | PathLike) -> Path:
+        """
+        Save metadata as a JSON file as data_dir/<gage_id>_meta.json
+        """
+        path = self.path_for(data_dir, self.gage_id)
         path.parent.mkdir(parents=True, exist_ok=True)
-        
         path.write_text(
             json.dumps(self.to_dict(), indent=4, default=str),
             encoding="utf-8"

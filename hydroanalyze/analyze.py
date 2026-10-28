@@ -7,6 +7,7 @@ import pandas as pd
 from pathlib import Path
 from os import PathLike
 from typing import Dict, List, Tuple, Optional, Self
+import warnings
 import xml.etree.ElementTree as ET
 
 from clients import (
@@ -67,7 +68,7 @@ class RiverData:
     def __init__(self, gage_id: str, base_dir: Path):
         self.gage_name: str | None = None
         self.gage_id: str = gage_id
-        self._metadata: Metadata | None = {}
+        self._metadata: Metadata | None = None
         self.file_manager = FileManager(base_dir)
 
         self.data = pd.DataFrame()
@@ -76,7 +77,7 @@ class RiverData:
 
 
     @property
-    def metadata(self) -> dict:
+    def metadata(self) -> Metadata | None:
         """Metadata for the loaded data (site, query, variables)."""
         return self._metadata
 
@@ -386,25 +387,7 @@ class RiverData:
         filename.write_bytes(xml_bytes)
 
         return filename
-
-
-    def save_metadata(self, file_path: Optional[str | PathLike] = None) -> Path:
-        """
-        Save metadata as JSON
-        :param file_path optional str | PathLike: path to write the metadata 
-            to. Default: self.directory / <gage_id>_meta.json
-
-        :returns: The path to the metadata file
-        :rtype: pathlib.Path
-        """
-        if self.metadata is None:
-            raise ValueError('No metadata loaded to save')
-
-        if not file_path:
-            file_path = self.directory / f'{self.gage_name}_meta.json'
-
-        return self.metadata.save(file_path.parent, filename=file_path.stem)
-
+    
 
     def to_csv(self, save_metadata: bool = True) -> Path:
         """
@@ -426,14 +409,12 @@ class RiverData:
         self.data.to_csv(csv_path)
 
         if save_metadata:
-            meta_path = csv_path.with_name(f'{csv_path.stem}_meta.json')
-            try:
-                self.save_metadata(file_path=meta_path)
-            except:
-                pass
-
+            if self.metadata is None:
+                warnings.warn('Metadata not saved because it was never loaded')
+            
+            self.metadata.save(csv_path.parent)
+            
         return csv_path
-
 
 
 
