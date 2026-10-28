@@ -55,8 +55,9 @@ def _load(
 
         river = RiverData(gage_id, out_dir).load_from_xml(xml)
     else:
+        noaa_data_dir = get_noaa_data_path()
         try:
-            river = RiverData(gage_id, out_dir).load_noaa()
+            river = RiverData(gage_id, out_dir).load_noaa(noaa_data_dir)
         except FileNotFoundError:
             typer.secho(f"Could not find NOAA data for gage {gage_id}. "
                         "Please download the data from NOAA and place it in the output directory.",
