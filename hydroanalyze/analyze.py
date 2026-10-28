@@ -126,7 +126,11 @@ class RiverData:
                 })
 
         
-
+        if len(rows) == 0:
+            raise ValueError(
+                f'No timeseries data found for gage ID {self.gage_id}'
+            )
+        
         df = pd.DataFrame(rows)
 
         # --- Clean types ---
@@ -389,7 +393,7 @@ class RiverData:
         Save metadata as JSON
         :param file_path optional str | PathLike: path to write the metadata 
             to. Default: self.directory / <gage_id>_meta.json
-            
+
         :returns: The path to the metadata file
         :rtype: pathlib.Path
         """
