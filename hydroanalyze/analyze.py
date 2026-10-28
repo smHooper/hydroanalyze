@@ -382,9 +382,27 @@ class RiverData:
         filename.write_bytes(xml_bytes)
 
         return filename
-    
 
-    def to_csv(self) -> Path:
+
+    def save_metadata(self, file_path: Optional[str | PathLike] = None) -> Path:
+        """
+        Save metadata as JSON
+        :param file_path optional str | PathLike: path to write the metadata 
+            to. Default: self.directory / <gage_id>_meta.json
+            
+        :returns: The path to the metadata file
+        :rtype: pathlib.Path
+        """
+        if self.metadata is None:
+            raise ValueError('No metadata loaded to save')
+
+        if not file_path:
+            file_path = self.directory / f'{self.gage_name}_meta.json'
+
+        return self.metadata.save(file_path.parent, filename=file_path.stem)
+
+
+    def to_csv(self, save_metadata: bool = True) -> Path:
         """
         Save data as a CSV
 
@@ -398,12 +416,21 @@ class RiverData:
             self.gage_name or self.gage_id
         )
 
-        filename = self.directory / f'{self.gage_name}_data.csv'
-        filename = self.file_manager.unique_filename(filename)
+        csv_path = self.directory / f'{self.gage_name}_data.csv'
+        csv_path = self.file_manager.unique_filename(csv_path)
 
-        self.data.to_csv(filename)
+        self.data.to_csv(csv_path)
 
-        return filename
+        if save_metadata:
+            meta_path = csv_path.with_name(f'{csv_path.stem}_meta.json')
+            try:
+                self.save_metadata(file_path=meta_path)
+            except:
+                pass
+
+        return csv_path
+
+
 
 
 # ==========================================================

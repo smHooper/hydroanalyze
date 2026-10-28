@@ -37,11 +37,9 @@ class Metadata:
         super().__init_subclass__(**kwargs)
         _REGISTRY[cls.source] = cls          # lets load() pick the right class
 
-
     # --- serialization ---
     def to_dict(self) -> dict:
         return {"source": self.source, **asdict(self)}
-
 
     @classmethod
     def from_dict(cls, d: dict) -> Metadata:
@@ -61,13 +59,27 @@ class Metadata:
     def get_fetch_time(self):
         self.fetched_at = dt.datetime.now(dt.timezone.utc).isoformat()
 
-    def save(self, data_dir: str | PathLike) -> Path:
-        path = self.path_for(data_dir, self.gage_id)
+
+    def save(
+            self, 
+            data_dir: str | PathLike, 
+            filename: Optional[str]=None
+        ) -> Path:
+        
+        # Use filename if given. Otherwise use the default {gage_id}_meta.json
+        path = (
+            Path(data_dir) / filename 
+            if filename 
+            else self.path_for(data_dir, self.gage_id)
+        )
+
         path.parent.mkdir(parents=True, exist_ok=True)
+        
         path.write_text(
             json.dumps(self.to_dict(), indent=4, default=str),
             encoding="utf-8"
         )
+
         return path
 
 
