@@ -201,8 +201,17 @@ def info(
     """
     
     river, _ = _load(gage_id, out, data_source)
-    typer.echo(river.metadata.pretty_print())
+    
+    if river.metadata is None:
+        typer.secho(
+            f"Gage ID: {gage_id}\nNo metadata found for this gage\n", 
+            fg=typer.colors.BRIGHT_YELLOW
+        )
+    else:
+        typer.echo(river.metadata.pretty_print())
+    
     typer.echo(river.data_ranges().to_string())
+    
     for col, years in river.incomplete_years().items():
         if col == 'year':
             continue
