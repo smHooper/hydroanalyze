@@ -373,13 +373,14 @@ class RiverData:
         )
 
 
-    def save_xml(self, xml_bytes: bytes) -> Path:
+    def save_xml(self, xml_bytes: bytes, overwrite: bool = False) -> Path:
         """
         Save the raw XML
 
         :param bytes xml_bytes: The raw XML data as bytes, typically obtained 
             from the USGS web service
-        
+        :param bool overwrite: Overwrite an existing file if exists. 
+            Default: False
         :returns: The path to the saved XML file
         :rtype: pathlib.Path
 
@@ -387,17 +388,23 @@ class RiverData:
         self.directory = self.file_manager.ensure_directory(self.gage_id)
 
         filename = self.directory / f'{self.gage_id}_data.xml'
-        filename = self.file_manager.unique_filename(filename)
+        if not overwrite:
+            filename = self.file_manager.unique_filename(filename)
 
         filename.write_bytes(xml_bytes)
 
         return filename
     
 
-    def to_csv(self, save_metadata: bool = True) -> Path:
+    def to_csv(
+            self, 
+            save_metadata: bool = True, 
+            overwrite: bool = False
+        ) -> Path:
         """
         Save data as a CSV
-
+        :param bool overwrite: Overwrite an existing file if exists.
+            Default: False
         :returns: The path to the saved CSV file
         :rtype: pathlib.Path
         """
@@ -409,7 +416,8 @@ class RiverData:
         )
 
         csv_path = self.directory / f'{self.gage_id}_data.csv'
-        csv_path = self.file_manager.unique_filename(csv_path)
+        if not overwrite:
+            csv_path = self.file_manager.unique_filename(csv_path)
 
         self.data.to_csv(csv_path)
 

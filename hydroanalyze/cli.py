@@ -237,6 +237,11 @@ def fetch(
         case_sensitive=False,
         help="Search for gage data from the specified source. Options: NOAA, USGS"
     ),
+    overwrite: bool = typer.Option(
+        False,
+        help="Overwrite existing files. If flag is absent, a unique name will"
+            " be assigned to outputs that share an existing filename"
+    ),
     show_metadata: bool = typer.Option(
         False, 
         "--show-metadata", 
@@ -259,10 +264,10 @@ def fetch(
         raise typer.Exit(code=0)
     
     if xml:
-        xml_path = river.save_xml(xml)
+        xml_path = river.save_xml(xml, overwrite=overwrite)
         typer.echo(f"Saved {xml_path.resolve()}")
     
-    csv_path = river.to_csv()
+    csv_path = river.to_csv(overwrite=overwrite)
     typer.echo(f"Saved {csv_path.resolve()}")
 
 
@@ -300,6 +305,11 @@ def analyze(
     out: Path = typer.Option(
         Path("./hydroanalyze_output"), 
         help="Output folder"
+    ),
+    overwrite: bool = typer.Option(
+        False,
+        help="Overwrite existing files. If flag is absent, a unique name will"
+            " be assigned to outputs that share an existing filename"
     ),
     data_source: DataSource | None = typer.Option(
         None, 
@@ -343,7 +353,7 @@ def analyze(
         False, 
         "--calendar-order", 
         help="Use calendar month order Jan-Dec instead of water year Oct-Sep"
-            " ('fractional-monthly only')",
+            " ('fractional-monthly' only)",
     ),
 ):
     """
@@ -403,8 +413,11 @@ def analyze(
         raise typer.Exit(1)
 
     out.mkdir(parents=True, exist_ok=True)
-    path = river.file_manager.unique_filename(out / f"{gage_id}_{metric.value}.csv")
+    path = out / f"{gage_id}_{metric.value}.csv"
+    if not overwrite:
+        path = river.file_manager.unique_filename()
     result.to_csv(path)
+    
     typer.echo(f"Saved {path}")
     typer.echo(result.head(10).to_string())   # quick preview in the terminal
 
