@@ -539,8 +539,9 @@ class HydroAnalyzer:
     def max(
             self, 
             variable: str, 
-            include_incomplete: bool=False, 
-            after_water_doy: int=1
+            include_incomplete: bool = False, 
+            after_water_doy: int = 1,
+            from_month_day: tuple[int, int] | None=None
         ) -> pd.DataFrame:
         """
         Returns the maximum value for the specified variable for each water year
@@ -558,9 +559,39 @@ class HydroAnalyzer:
         """
 
         self.check_variable(variable)
+        
+        data = self.river.data
 
-        # Only consider values on or after the specified water day of year
-        df = self.river.data.loc[self.river.data.water_doy >= after_water_doy]
+        # If from_month_day given, limit search to just records after that day 
+        #   in the water year
+        if from_month_day is not None:
+            month, day = from_month_day
+
+            # Validate here too, so API callers get a clear error, not a
+            #   silently empty result. 2000 is a leap year, so (2, 29) is valid.
+            try:
+                pd.Timestamp(2000, month, day)
+            except ValueError:
+                raise ValueError(f"Invalid month/day: {from_month_day}")
+
+            # Turn (month, day) into a sortable "position in the water year"
+            #   that doesn't count days, so Feb 29 never shifts later dates.
+            #   (month - 10) % 12 maps Oct->0, Nov->1, ... Sep->11, and
+            #   multiplying by 100 leaves room for the day (1-31), e.g.:
+            #   Oct 1 -> 1, Feb 29 -> 429, Mar 1 -> 501, Sep 30 -> 1130
+            start_key = ((month - 10) % 12) * 100 + day
+
+            # Same calculation for every row, vectorized over the DatetimeIndex
+            idx = data.index
+            row_keys = ((idx.month - 10) % 12) * 100 + idx.day
+
+            # Inclusive (>=), matching the water-DOY behavior below
+            df = data.loc[row_keys >= start_key]
+        
+        # Otherise, only consider values on or after the specified water day 
+        #   of year
+        else:
+            df = data.loc[data.water_doy >= after_water_doy]
 
         max_values = df.groupby('water_year').max()[variable]
         max_date = df.groupby('water_year').idxmax()[variable]

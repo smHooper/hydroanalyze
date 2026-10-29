@@ -46,7 +46,7 @@ class Metadata:
         d = dict(d)
         target = _REGISTRY.get(d.pop("source", None), Metadata)
         known = {f.name for f in fields(target)}
-        
+
         return target(**{k: v for k, v in d.items() if k in known})
 
 
@@ -261,7 +261,7 @@ def ensure_noaa_metadata(
         if log:
             log.warning('metadata request failed with error: %s', e)
         return Metadata(gage_id=gage_id)
-    
+
     meta = NOAAMetadata.from_api(raw, gage_id)
     meta.get_fetch_time()
     

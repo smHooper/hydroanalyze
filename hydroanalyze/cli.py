@@ -1,18 +1,25 @@
+"""
+Command-line interface for calling hydroanalyze API
+
+Author: Sam Hooper
+Create date: 2026-10-21
+Contact: samuel_hooper@nps.gov
+"""
+
 from __future__ import annotations
 
+from click.core import ParameterSource
+import datetime as dt
 from enum import Enum
 from pathlib import Path
-from typing import Optional
 import requests
 import typer
-import xml.etree.ElementTree as ET
 
 from analyze import (
     HydroAnalyzer, 
     RiverData, 
     USGSClient
 )
-from metadata import ensure_noaa_metadata
 from utils.helpers import get_noaa_data_path
 
 app = typer.Typer(
@@ -48,7 +55,7 @@ class Metric(str, Enum):
     max = (
         "max",
         "Peak value and date of the peak for each water year (default: discharge).",
-        ("--variable", "--include-incomplete", "--after-water-doy"),
+        ("--variable", "--include-incomplete", "--after-water-doy", "--from-date"),
     )
     monthly = (
         "monthly",
@@ -72,6 +79,44 @@ class Metric(str, Enum):
         ("--include-incomplete", "--calendar-order"),
     )
 
+# Every flag that belongs to at least one metric, derived from the enum.
+METRIC_FLAGS = {flag for m in Metric for flag in m.options}
+
+def _flags_given(ctx: typer.Context) -> list[str]:
+    """
+    Flag strings (e.g. '--stat') the user typed on the command line.
+    """
+    given = []
+    for param in ctx.command.params:
+        source = ctx.get_parameter_source(param.name)
+        # Compare by name: the enum class may differ between click and
+        #   typer's bundled copy, so `==` against an imported member can fail.
+        if source is not None and source.name == "COMMANDLINE":
+            given.append(param.opts[0])
+
+    return given
+
+
+def _check_flags(ctx: typer.Context, metric: Metric) -> None:
+    given = _flags_given(ctx)
+
+    # Only metric-specific flags are checked. Shared ones such as --out and
+    # --data-source aren't in any Metric.options, so they're ignored here.
+    unused = [f for f in given if f in METRIC_FLAGS and f not in metric.options]
+    if unused:
+        typer.secho(
+            f"{', '.join(unused)} not used by '{metric.value}'. "
+            "See 'hydroanalyze metrics'.",
+            fg=typer.colors.RED, err=True,
+        )
+        raise typer.Exit(1)
+    
+    if "--from-date" in given and "--after-water-doy" in given:
+        typer.secho(
+            "Use either --from-date or --after-water-doy, not both.",
+            fg=typer.colors.RED, err=True,
+        )
+        raise typer.Exit(1)
 
 def _load(
         gage_id: str, 
@@ -205,11 +250,29 @@ def fetch(
     typer.echo(f"Saved {csv_path.resolve()}")
 
 
+def _parse_month_day(value: str | None) -> tuple[int, int] | None:
+    """
+    Helper to validate the from_date parameter
+    """
+    if value is None:
+        return None
+    try:
+        parsed = dt.datetime.strptime(f"2000-{value}", "%Y-%m-%d")
+    except ValueError:
+        raise typer.BadParameter(
+            f"--from-date {value} is not valid. Use the format MM-DD, e.g."
+            " 03-01"
+        )
+    return parsed.month, parsed.day
+
+
 @app.command(epilog="Metrics: " + ", ".join(m.value for m in Metric))
 def analyze(
+    ctx: typer.Context,
+
     gage_id: str = typer.Argument(
         ..., 
-        metavar="GAGE ID",
+        metavar="GAGE_ID",
         help="USGS/NOAA gage ID"
     ),
     metric: Metric = typer.Argument(
@@ -246,7 +309,13 @@ def analyze(
         min=1, 
         max=366,
         help="Only consider values on/after this water day of year ('max'" 
-        " command only)",
+            " command only)",
+    ),
+    from_date: str | None = typer.Option(
+        None, 
+        "--from-date", 
+        help="Similar to --after-water-doy but uses numeric Month-Day (e.g.,"
+            " 03-01) instead ('max' command only)",
     ),
     long_format: bool = typer.Option(
         False, 
@@ -265,8 +334,14 @@ def analyze(
     result for the entire period of record except for 'monthly' and 
     'fractional-monthly'
     """
+    # Make sure there aren't any conflicting flags
+    _check_flags(ctx, metric)
+
     river, _ = _load(gage_id, out, data_source)
     h = HydroAnalyzer(river)
+    
+    if from_date is not None:
+        from_date = _parse_month_day(from_date)
 
     try:
         runners = {
@@ -280,7 +355,8 @@ def analyze(
                 h.max(
                     variable, 
                     include_incomplete, 
-                    after_water_doy
+                    after_water_doy,
+                    from_month_day=from_date
                 ),
             
             Metric.monthly: lambda: 
