@@ -79,6 +79,10 @@ class Metric(str, Enum):
         ("--include-incomplete", "--calendar-order"),
     )
 
+class DataSource(str, Enum):
+    usgs = "usgs"
+    noaa = "noaa"
+
 # Every flag that belongs to at least one metric, derived from the enum.
 METRIC_FLAGS = {flag for m in Metric for flag in m.options}
 
@@ -130,7 +134,7 @@ def _load(
     use_usgs = (
         gage_id.isdigit() 
         if data_source is None 
-        else str(data_source).lower() == 'usgs'
+        else data_source is DataSource.usgs
     )
     
     if use_usgs:
@@ -185,9 +189,10 @@ def info(
         Path("./hydroanalyze_output"), 
         help="Output folder"
     ),
-    data_source: str | None = typer.Option(
+    data_source: DataSource | None = typer.Option(
         None, 
         "--data-source", 
+        case_sensitive=False,
         help="Search for gage data from the specified source. Options: NOAA, USGS"
     ),
 ):
@@ -216,9 +221,10 @@ def fetch(
         Path("hydroanalyze_output"), 
         help="Output folder"
     ),
-    data_source: str | None = typer.Option(
+    data_source: DataSource | None = typer.Option(
         None, 
-        "--data-source", 
+        "--data-source",
+        case_sensitive=False,
         help="Search for gage data from the specified source. Options: NOAA, USGS"
     ),
     show_metadata: bool = typer.Option(
@@ -285,9 +291,10 @@ def analyze(
         Path("./hydroanalyze_output"), 
         help="Output folder"
     ),
-    data_source: str | None = typer.Option(
+    data_source: DataSource | None = typer.Option(
         None, 
         "--data-source", 
+        case_sensitive=False,
         help="Search for gage data from the specified source. Options: NOAA, USGS"
     ),
     include_incomplete: bool = typer.Option(
