@@ -187,6 +187,9 @@ class RiverData:
         
         # Get gage name from metadata
         self._metadata = ensure_noaa_metadata(self.gage_id, data_dir)
+        if self.metadata is None:
+            warnings.warn(f'No metadata found for gage {self.gage_id}')
+            self._metadata = Metadata(gage_id=self.gage_id)
         self.gage_name = self.metadata.gage_name
 
         df = (
