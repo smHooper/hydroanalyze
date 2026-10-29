@@ -381,11 +381,9 @@ class RiverData:
         :rtype: pathlib.Path
 
         """
-        self.directory = self.file_manager.ensure_directory(
-            self.gage_name or self.gage_id
-        )
+        self.directory = self.file_manager.ensure_directory(self.gage_id)
 
-        filename = self.directory / f'{self.gage_name}_data.xml'
+        filename = self.directory / f'{self.gage_id}_data.xml'
         filename = self.file_manager.unique_filename(filename)
 
         filename.write_bytes(xml_bytes)
@@ -407,7 +405,7 @@ class RiverData:
             self.gage_name or self.gage_id
         )
 
-        csv_path = self.directory / f'{self.gage_name}_data.csv'
+        csv_path = self.directory / f'{self.gage_id}_data.csv'
         csv_path = self.file_manager.unique_filename(csv_path)
 
         self.data.to_csv(csv_path)
