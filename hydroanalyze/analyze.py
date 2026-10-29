@@ -556,8 +556,9 @@ class HydroAnalyzer:
         :param int after_water_doy: Only consider values on or after 
             this water day of year (e.g. to exclude early season peaks) 
             Defaults to 1
-        :returns: DataFrame with columns 'max_discharge_cfs' and 
-            'max_discharge_date' indexed by water year
+        :param tuple[int, int] | None:
+        :returns: DataFrame with columns 'max_<variable name>' and 
+            'date_of_max_<variable name>' indexed by water year
         :rtype: pandas.DataFrame
         """
 
@@ -591,7 +592,7 @@ class HydroAnalyzer:
             # Inclusive (>=), matching the water-DOY behavior below
             df = data.loc[row_keys >= start_key]
         
-        # Otherise, only consider values on or after the specified water day 
+        # Otherwise, only consider values on or after the specified water day 
         #   of year
         else:
             df = data.loc[data.water_doy >= after_water_doy]
