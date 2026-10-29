@@ -402,7 +402,7 @@ class RiverData:
             raise ValueError("No data loaded to save.")
 
         self.directory = self.file_manager.ensure_directory(
-            self.gage_name or self.gage_id
+            self.gage_id
         )
 
         csv_path = self.directory / f'{self.gage_id}_data.csv'
