@@ -14,6 +14,7 @@ from enum import Enum
 from pathlib import Path
 import requests
 import typer
+import xml.etree.ElementTree as ET
 
 from analyze import (
     HydroAnalyzer, 
@@ -148,16 +149,16 @@ def _load(
                 err=True
             )
             raise typer.Exit(1)
-        except requests.ConnectionError:
+        except (requests.ConnectionError, requests.RequestException):
             typer.secho("Could not reach USGS. Check your internet connection.",
                         fg=typer.colors.RED, err=True)
             raise typer.Exit(1)
 
         try:
             river = RiverData(gage_id, out_dir).load_from_xml(xml)
-        except ValueError:
+        except (ValueError, ET.ParseError) as e:
             typer.secho(
-                f"No timeseries data found for gage ID {gage_id}",
+                f"No timeseries data found for gage ID {gage_id}: {e}",
                 fg=typer.colors.RED, err=True
             )
             raise typer.Exit(1)
