@@ -290,11 +290,11 @@ class RiverData:
         """
         df = self.data
 
-        if 'water_year' not in df.columns:
-            self.get_water_year()
-
         if df is None or df.empty:
             raise ValueError("No data loaded to determine record range.")
+
+        if 'water_year' not in df.columns:
+            self.get_water_year()
 
         # Define water year start and end per group
         def is_complete(group):
