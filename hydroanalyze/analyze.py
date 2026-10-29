@@ -64,6 +64,12 @@ class RiverData:
         "Minimum": "min",
     }
     WATER_YEAR_MONTHS = [10, 11, 12, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+    NON_VARIABLE_COLUMNS = [
+        'year', 
+        'water_year', 
+        'water_doy', 
+        'day_of_year'
+    ]
 
     def __init__(self, gage_id: str, base_dir: Path):
         self.gage_name: str | None = None
@@ -193,6 +199,13 @@ class RiverData:
         self.data = df
         
         return self
+
+
+    def _get_variable_columns(self) -> list:
+        return [
+            col for col in self.data.columns 
+            if col not in self.NON_VARIABLE_COLUMNS
+        ]
     
 
     def get_water_year(self) -> pd.DataFrame:
@@ -219,8 +232,7 @@ class RiverData:
         df['day_of_year'] = df.index.dayofyear
 
         # Convert all columns to nullable Int64
-        water_year_cols = ['year', 'water_year', 'water_doy', 'day_of_year']
-        for col in water_year_cols:
+        for col in self.NON_VARIABLE_COLUMNS:
             df[col] = df[col].astype(INT_DTYPE)
 
         return self
@@ -237,12 +249,9 @@ class RiverData:
         if self.data is None or self.data.empty:
             raise ValueError("No data loaded to determine record range.")
 
-        variable_columns = [
-            col for col in self.data.columns 
-            if col not in ['water_year', 'water_doy', 'day_of_year']
-        ]
+        
         ranges = {}
-        for col in variable_columns:
+        for col in self._get_variable_columns():
             if self.data[col].notna().any():
                 ranges[col] = {
                     'start': self.data[col].first_valid_index().date(),
@@ -284,11 +293,6 @@ class RiverData:
         if df is None or df.empty:
             raise ValueError("No data loaded to determine record range.")
 
-        variable_columns = [
-            col for col in df.columns 
-            if col not in ['water_year', 'water_doy', 'day_of_year']
-        ]
-
         # Define water year start and end per group
         def is_complete(group):
             wy = group.name
@@ -300,7 +304,7 @@ class RiverData:
 
             return len(actual) == len(expected) and actual.isin(expected).all()
         
-        for col in variable_columns:
+        for col in self._get_variable_columns():
             data = df.loc[:, [col, 'water_year']].dropna(subset=[col])
 
             self._incomplete_years[col] = []
