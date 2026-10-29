@@ -22,6 +22,10 @@ from analyze import (
     USGSClient
 )
 from utils.helpers import get_noaa_data_path
+from utils.ingest_noaa import (
+    DEFAULT_SEARCH_PATTERN,
+    ingest
+)
 
 app = typer.Typer(
     help="Analyze USGS or NOAA river gage data.",
@@ -439,6 +443,74 @@ def metrics():
         if m.options:
             typer.secho(f"{'':<{width}}  Options: ", fg=typer.colors.CYAN, nl=False)
             typer.secho(", ".join(m.options), fg=typer.colors.BRIGHT_CYAN)
+
+@app.command(name="add-noaa")
+def add_noaa_data(
+    search_dir: Path = typer.Argument(
+        ...,
+        metavar="SEARCH_DIR",
+        exists=True,
+        file_okay=False,
+        readable=True,
+        help="Folder to search (including subfolders) for NOAA data files",
+    ),
+    search_pattern: str = typer.Option(
+        DEFAULT_SEARCH_PATTERN,
+        "--search-pattern",
+        help="Regex that file names must fully match",
+        show_default=False,
+    ),
+    config: Path | None = typer.Option(
+        None,
+        "--config",
+        exists=True,
+        dir_okay=False,
+        help="Path to the config file (default: search for it automatically)",
+    ),
+    overwrite: list[str] | None = typer.Option(
+        None,
+        "--overwrite",
+        metavar="GAGE",
+        help="Allow new values to replace stored values for this gage ID. "
+             "Repeat the flag for several gages.",
+    ),
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Report what would happen without writing anything",
+    ),
+    skip_bad_files: bool = typer.Option(
+        False,
+        "--skip-bad-files",
+        help="Ingest the good files even if some matching files are unreadable",
+    ),
+):
+    """
+    Add raw NOAA gage files to the local NOAA data store.
+
+    Stored records are never changed unless you pass --overwrite for that
+    gage. Before anything is replaced, the old CSV is backed up and every
+    changed record is logged. Run with --dry-run first to preview.
+
+    Exit codes: 0 = ok, 1 = unreadable files, 2 = conflicting values.
+    """
+    try:
+        code = ingest(
+            search_dir,
+            search_pattern=search_pattern,
+            config_path=config,
+            overwrite_gages=overwrite or [],
+            dry_run=dry_run,
+            skip_bad_files=skip_bad_files,
+        )
+    except (RuntimeError, OSError, ValueError) as e:
+        # RuntimeError: config missing NOAA_DATA_PATH. OSError covers a
+        #   missing config and locked files. ValueError covers bad JSON.
+        typer.secho(f"Error: {e}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(1)
+
+    raise typer.Exit(code)
+
 
 
 if __name__ == "__main__":
