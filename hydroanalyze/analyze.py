@@ -596,8 +596,8 @@ class HydroAnalyzer:
         else:
             df = data.loc[data.water_doy >= after_water_doy]
 
-        max_values = df.groupby('water_year').max()[variable]
-        max_date = df.groupby('water_year').idxmax()[variable]
+        max_values = df.groupby('water_year')[variable].max()
+        max_date = df.groupby('water_year')[variable].idxmax()
         result = pd.DataFrame({
             f'date_of_max_{variable}': max_date, 
             f'max_{variable}': max_values
