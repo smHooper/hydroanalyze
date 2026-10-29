@@ -413,8 +413,8 @@ class RiverData:
         if save_metadata:
             if self.metadata is None:
                 warnings.warn('Metadata not saved because it was never loaded')
-            
-            self.metadata.save(csv_path.parent)
+            else:
+                self.metadata.save(csv_path.parent)
             
         return csv_path
 
