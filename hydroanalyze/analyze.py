@@ -556,7 +556,9 @@ class HydroAnalyzer:
         :param int after_water_doy: Only consider values on or after 
             this water day of year (e.g. to exclude early season peaks) 
             Defaults to 1
-        :param tuple[int, int] | None:
+        :param  tuple[int, int] | None from_month_day: Only consider values on 
+            or after this month/day combo (e.g. to exclude early season peaks) 
+            If both from_month_day and after_water_day are given, from_month_day will be used. Defaults to None
         :returns: DataFrame with columns 'max_<variable name>' and 
             'date_of_max_<variable name>' indexed by water year
         :rtype: pandas.DataFrame
