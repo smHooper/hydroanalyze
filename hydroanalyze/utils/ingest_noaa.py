@@ -111,6 +111,17 @@ def read_noaa_file(file_path: Path, comment_char: Optional[str]) -> pd.DataFrame
     except Exception as e:
         raise ValueError(f'could not be read: {e}') from e
 
+    missing_columns = list(
+        filter(
+            lambda c: c != 'Obstime' and c not in header, 
+            COLUMNS
+        )
+    )
+    if len(missing_columns) > 0:
+        raise RuntimeError(
+            f'File is missing columns: {", ".join(missing_columns)}'
+        )
+    
     # Expand Obstime into two columns to match the data rows
     names = []
     for col in header:
