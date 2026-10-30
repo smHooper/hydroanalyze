@@ -111,6 +111,17 @@ def read_noaa_file(file_path: Path, comment_char: Optional[str]) -> pd.DataFrame
     except Exception as e:
         raise ValueError(f'could not be read: {e}') from e
 
+    missing_columns = list(
+        filter(
+            lambda c: c != 'Obstime' and c not in header, 
+            COLUMNS
+        )
+    )
+    if len(missing_columns) > 0:
+        raise RuntimeError(
+            f'File is missing columns: {", ".join(missing_columns)}'
+        )
+    
     # Expand Obstime into two columns to match the data rows
     names = []
     for col in header:
@@ -123,7 +134,7 @@ def read_noaa_file(file_path: Path, comment_char: Optional[str]) -> pd.DataFrame
         df = pd.read_csv(
             file_path,
             sep=r'\s+',
-            header=0,       # replace oringal header row
+            header=0,       # replace original header row
             names=names,    # with new column names
             comment=comment_char,
             skip_blank_lines=True,
@@ -132,7 +143,10 @@ def read_noaa_file(file_path: Path, comment_char: Optional[str]) -> pd.DataFrame
         raise ValueError(f'could not be parsed as tab-delimited text: {e}') from e
     
     # Combine Date and Time columns back into one Obstime and drop them
-    df["Obstime"] = pd.to_datetime(df["Date"] + " " + df["Time"], utc=True)
+    try:
+        df["Obstime"] = pd.to_datetime(df["Date"] + " " + df["Time"], utc=True)
+    except (KeyError, ValueError, TypeError) as e:
+        raise ValueError(f"could not build Obstime from Date/Time: {e}") from e
     df = df.drop(columns=["Date", "Time"])
 
     df.columns = df.columns.str.strip()

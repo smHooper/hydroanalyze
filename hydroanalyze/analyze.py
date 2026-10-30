@@ -7,6 +7,7 @@ import pandas as pd
 from pathlib import Path
 from os import PathLike
 from typing import Dict, List, Tuple, Optional, Self
+import warnings
 import xml.etree.ElementTree as ET
 
 from clients import (
@@ -63,11 +64,17 @@ class RiverData:
         "Minimum": "min",
     }
     WATER_YEAR_MONTHS = [10, 11, 12, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+    NON_VARIABLE_COLUMNS = [
+        'year', 
+        'water_year', 
+        'water_doy', 
+        'day_of_year'
+    ]
 
     def __init__(self, gage_id: str, base_dir: Path):
         self.gage_name: str | None = None
         self.gage_id: str = gage_id
-        self._metadata: Metadata | None = {}
+        self._metadata: Metadata | None = None
         self.file_manager = FileManager(base_dir)
 
         self.data = pd.DataFrame()
@@ -76,7 +83,7 @@ class RiverData:
 
 
     @property
-    def metadata(self) -> dict:
+    def metadata(self) -> Metadata | None:
         """Metadata for the loaded data (site, query, variables)."""
         return self._metadata
 
@@ -126,7 +133,11 @@ class RiverData:
                 })
 
         
-
+        if len(rows) == 0:
+            raise ValueError(
+                f'No timeseries data found for gage ID {self.gage_id}'
+            )
+        
         df = pd.DataFrame(rows)
 
         # --- Clean types ---
@@ -176,6 +187,9 @@ class RiverData:
         
         # Get gage name from metadata
         self._metadata = ensure_noaa_metadata(self.gage_id, data_dir)
+        if self.metadata is None:
+            warnings.warn(f'No metadata found for gage {self.gage_id}')
+            self._metadata = Metadata(gage_id=self.gage_id)
         self.gage_name = self.metadata.gage_name
 
         df = (
@@ -188,6 +202,13 @@ class RiverData:
         self.data = df
         
         return self
+
+
+    def _get_variable_columns(self) -> list:
+        return [
+            col for col in self.data.columns 
+            if col not in self.NON_VARIABLE_COLUMNS
+        ]
     
 
     def get_water_year(self) -> pd.DataFrame:
@@ -214,8 +235,7 @@ class RiverData:
         df['day_of_year'] = df.index.dayofyear
 
         # Convert all columns to nullable Int64
-        water_year_cols = ['year', 'water_year', 'water_doy', 'day_of_year']
-        for col in water_year_cols:
+        for col in self.NON_VARIABLE_COLUMNS:
             df[col] = df[col].astype(INT_DTYPE)
 
         return self
@@ -232,12 +252,9 @@ class RiverData:
         if self.data is None or self.data.empty:
             raise ValueError("No data loaded to determine record range.")
 
-        variable_columns = [
-            col for col in self.data.columns 
-            if col not in ['water_year', 'water_doy', 'day_of_year']
-        ]
+        
         ranges = {}
-        for col in variable_columns:
+        for col in self._get_variable_columns():
             if self.data[col].notna().any():
                 ranges[col] = {
                     'start': self.data[col].first_valid_index().date(),
@@ -273,16 +290,11 @@ class RiverData:
         """
         df = self.data
 
-        if 'water_year' not in df.columns:
-            self.get_water_year()
-
         if df is None or df.empty:
             raise ValueError("No data loaded to determine record range.")
 
-        variable_columns = [
-            col for col in df.columns 
-            if col not in ['water_year', 'water_doy', 'day_of_year']
-        ]
+        if 'water_year' not in df.columns:
+            self.get_water_year()
 
         # Define water year start and end per group
         def is_complete(group):
@@ -295,7 +307,7 @@ class RiverData:
 
             return len(actual) == len(expected) and actual.isin(expected).all()
         
-        for col in variable_columns:
+        for col in self._get_variable_columns():
             data = df.loc[:, [col, 'water_year']].dropna(subset=[col])
 
             self._incomplete_years[col] = []
@@ -361,33 +373,97 @@ class RiverData:
         )
 
 
-    def save_xml(self, xml_bytes: bytes) -> Path:
+    def missing_days(self, variable: str, within_record: bool = True) -> pd.DataFrame:
+        """
+        Count days without a valid value for each water year.
+
+        A day counts as present if it has at least one non-NA value, so both
+        absent rows and NaN values are counted as missing.
+
+        :param str variable: Column to check
+        :param bool within_record: If True, only count days between the first
+            and last valid value for this variable, so partial years at the
+            start/end of the record aren't reported as mostly missing. If False,
+            measure against complete water years (Oct 1 - Sep 30).
+        :returns: DataFrame indexed by water year with columns 'expected_days',
+            'valid_days' and 'missing_days'
+        :rtype: pandas.DataFrame
+        """
+        if variable not in self.data.columns:
+            raise ValueError(f'{variable} not found in dataset.')
+
+        valid = self.data[variable].dropna()
+        if valid.empty:
+            raise ValueError(f'All values in "{variable}" column are NaN.')
+
+        # Distinct calendar days that have at least one valid value
+        valid_days = pd.DatetimeIndex(valid.index.normalize().unique())
+
+        first, last = valid_days.min(), valid_days.max()
+        if not within_record:
+            # Extend to whole water years
+            first = pd.Timestamp(first.year - (first.month < 10), 10, 1)
+            last = pd.Timestamp(last.year + (last.month >= 10), 9, 30)
+
+        all_days = pd.date_range(first, last, freq='D')
+
+        def water_year(idx: pd.DatetimeIndex):
+            return idx.year + (idx.month >= 10)
+
+        expected = (
+            pd.Series(1, index=all_days)
+                .groupby(water_year(all_days))
+                .sum()
+        )
+        present = (
+            pd.Series(1, index=valid_days)
+                .groupby(water_year(valid_days))
+                .sum()
+        )
+
+        result = pd.DataFrame({
+            'expected_days': expected, 
+            'valid_days': present
+        })
+        result.valid_days = result.valid_days.fillna(0).astype(int)
+        result['missing_days'] = result.expected_days - result.valid_days
+        result.index.name = 'water_year'
+        
+        return result
+
+
+    def save_xml(self, xml_bytes: bytes, overwrite: bool = False) -> Path:
         """
         Save the raw XML
 
         :param bytes xml_bytes: The raw XML data as bytes, typically obtained 
             from the USGS web service
-        
+        :param bool overwrite: Overwrite an existing file if exists. 
+            Default: False
         :returns: The path to the saved XML file
         :rtype: pathlib.Path
 
         """
-        self.directory = self.file_manager.ensure_directory(
-            self.gage_name or self.gage_id
-        )
+        self.directory = self.file_manager.ensure_directory(self.gage_id)
 
-        filename = self.directory / f'{self.gage_name}_data.xml'
-        filename = self.file_manager.unique_filename(filename)
+        filename = self.directory / f'{self.gage_id}_data.xml'
+        if not overwrite:
+            filename = self.file_manager.unique_filename(filename)
 
         filename.write_bytes(xml_bytes)
 
         return filename
     
 
-    def to_csv(self) -> Path:
+    def to_csv(
+            self, 
+            save_metadata: bool = True, 
+            overwrite: bool = False
+        ) -> Path:
         """
         Save data as a CSV
-
+        :param bool overwrite: Overwrite an existing file if exists.
+            Default: False
         :returns: The path to the saved CSV file
         :rtype: pathlib.Path
         """
@@ -395,15 +471,23 @@ class RiverData:
             raise ValueError("No data loaded to save.")
 
         self.directory = self.file_manager.ensure_directory(
-            self.gage_name or self.gage_id
+            self.gage_id
         )
 
-        filename = self.directory / f'{self.gage_name}_data.csv'
-        filename = self.file_manager.unique_filename(filename)
+        csv_path = self.directory / f'{self.gage_id}_data.csv'
+        if not overwrite:
+            csv_path = self.file_manager.unique_filename(csv_path)
 
-        self.data.to_csv(filename)
+        self.data.to_csv(csv_path)
 
-        return filename
+        if save_metadata:
+            if self.metadata is None:
+                warnings.warn('Metadata not saved because it was never loaded')
+            else:
+                self.metadata.save(csv_path.parent)
+            
+        return csv_path
+
 
 
 # ==========================================================
@@ -525,8 +609,9 @@ class HydroAnalyzer:
     def max(
             self, 
             variable: str, 
-            include_incomplete: bool=False, 
-            after_water_doy: int=1
+            include_incomplete: bool = False, 
+            after_water_doy: int = 1,
+            from_month_day: tuple[int, int] | None=None
         ) -> pd.DataFrame:
         """
         Returns the maximum value for the specified variable for each water year
@@ -538,18 +623,51 @@ class HydroAnalyzer:
         :param int after_water_doy: Only consider values on or after 
             this water day of year (e.g. to exclude early season peaks) 
             Defaults to 1
-        :returns: DataFrame with columns 'max_discharge_cfs' and 
-            'max_discharge_date' indexed by water year
+        :param  tuple[int, int] | None from_month_day: Only consider values on 
+            or after this month/day combo (e.g. to exclude early season peaks) 
+            If both from_month_day and after_water_day are given, from_month_day will be used. Defaults to None
+        :returns: DataFrame with columns 'max_<variable name>' and 
+            'date_of_max_<variable name>' indexed by water year
         :rtype: pandas.DataFrame
         """
 
         self.check_variable(variable)
+        
+        data = self.river.data
 
-        # Only consider values on or after the specified water day of year
-        df = self.river.data.loc[self.river.data.water_doy >= after_water_doy]
+        # If from_month_day given, limit search to just records after that day 
+        #   in the water year
+        if from_month_day is not None:
+            month, day = from_month_day
 
-        max_values = df.groupby('water_year').max()[variable]
-        max_date = df.groupby('water_year').idxmax()[variable]
+            # Validate here too, so API callers get a clear error, not a
+            #   silently empty result. 2000 is a leap year, so (2, 29) is valid.
+            try:
+                pd.Timestamp(2000, month, day)
+            except ValueError:
+                raise ValueError(f"Invalid month/day: {from_month_day}")
+
+            # Turn (month, day) into a sortable "position in the water year"
+            #   that doesn't count days, so Feb 29 never shifts later dates.
+            #   (month - 10) % 12 maps Oct->0, Nov->1, ... Sep->11, and
+            #   multiplying by 100 leaves room for the day (1-31), e.g.:
+            #   Oct 1 -> 1, Feb 29 -> 429, Mar 1 -> 501, Sep 30 -> 1130
+            start_key = ((month - 10) % 12) * 100 + day
+
+            # Same calculation for every row, vectorized over the DatetimeIndex
+            idx = data.index
+            row_keys = ((idx.month - 10) % 12) * 100 + idx.day
+
+            # Inclusive (>=), matching the water-DOY behavior below
+            df = data.loc[row_keys >= start_key]
+        
+        # Otherwise, only consider values on or after the specified water day 
+        #   of year
+        else:
+            df = data.loc[data.water_doy >= after_water_doy]
+
+        max_values = df.groupby('water_year')[variable].max()
+        max_date = df.groupby('water_year')[variable].idxmax()
         result = pd.DataFrame({
             f'date_of_max_{variable}': max_date, 
             f'max_{variable}': max_values

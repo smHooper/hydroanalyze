@@ -37,18 +37,16 @@ class Metadata:
         super().__init_subclass__(**kwargs)
         _REGISTRY[cls.source] = cls          # lets load() pick the right class
 
-
     # --- serialization ---
     def to_dict(self) -> dict:
         return {"source": self.source, **asdict(self)}
-
 
     @classmethod
     def from_dict(cls, d: dict) -> Metadata:
         d = dict(d)
         target = _REGISTRY.get(d.pop("source", None), Metadata)
         known = {f.name for f in fields(target)}
-        
+
         return target(**{k: v for k, v in d.items() if k in known})
 
 
@@ -61,14 +59,39 @@ class Metadata:
     def get_fetch_time(self):
         self.fetched_at = dt.datetime.now(dt.timezone.utc).isoformat()
 
+
     def save(self, data_dir: str | PathLike) -> Path:
+        """
+        Save metadata as a JSON file as data_dir/<gage_id>_meta.json
+        """
         path = self.path_for(data_dir, self.gage_id)
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(
             json.dumps(self.to_dict(), indent=4, default=str),
             encoding="utf-8"
         )
+
         return path
+    
+
+    def pretty_print(self, all: Optional[bool]=False) -> str:
+        
+        fetched_date = dt.datetime.fromisoformat(self.fetched_at)\
+            .strftime('%B %d, %Y %I:%M %p')
+
+        if all:
+            return json.dumps(self.as_dict(), indent=4)
+        else:
+            return (
+                'Hydroanalyze Metadata\n'
+                '~~~~~~~~~~~~~~~~~~~~~~~\n'
+                f'Gage Name:    {self.gage_name}\n'
+                f'Gage ID:      {self.gage_id}\n'
+                f'Source:       {self.source}\n'
+                f'Coordinates:  {self.latitude}, {self.longitude}\n'
+                f'Time Zone:    {self.timezone}\n'
+                f'As of:        {fetched_date}\n'
+            )
 
 
     @classmethod
@@ -238,7 +261,7 @@ def ensure_noaa_metadata(
         if log:
             log.warning('metadata request failed with error: %s', e)
         return Metadata(gage_id=gage_id)
-    
+
     meta = NOAAMetadata.from_api(raw, gage_id)
     meta.get_fetch_time()
     
