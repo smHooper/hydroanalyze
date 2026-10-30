@@ -12,6 +12,7 @@ from click.core import ParameterSource
 import datetime as dt
 from enum import Enum
 from pathlib import Path
+from pandas import DataFrame
 import requests
 import typer
 import xml.etree.ElementTree as ET
@@ -199,14 +200,16 @@ def info(
         "--data-source", 
         case_sensitive=False,
         help="Search for gage data from the specified source. Options: NOAA, USGS"
-    ),
+    )
 ):
     """
-    Show the metadata, period of record, and incomplete water years for a gage.
+    Show the metadata, period of record, incomplete water years, and optionally 
+    missing days for a gage.
     """
     
     river, _ = _load(gage_id, out, data_source)
-    
+
+    # Show metadata
     if river.metadata is None:
         typer.secho(
             f"Gage ID: {gage_id}\nNo metadata found for this gage\n", 
@@ -214,15 +217,31 @@ def info(
         )
     else:
         typer.echo(river.metadata.pretty_print())
+
+    # Show date ranges
+    typer.echo("\nDate Ranges per Gage Varaible")
+    typer.echo("-----------------------------")
+    data_ranges = river.data_ranges()
+    typer.echo(data_ranges.to_string())
     
-    typer.echo(river.data_ranges().to_string())
-    
-    for col, years in river.incomplete_years().items():
-        if col == 'year':
-            continue
-        typer.echo(f"\n{col}: {len(years)} incomplete water years")
-        if years:
-            typer.echo("  " + ", ".join(map(str, years)))
+    # Show missing days
+    missing_day_counts = {}
+    for variable in data_ranges.columns:
+        try:
+            missing_day_counts[variable] = \
+                river.missing_days(variable).missing_days
+        except:
+            missing_day_counts[variable] = {}
+    missing = DataFrame(missing_day_counts)
+    if missing.empty:
+        typer.secho(
+            "\nWARNING: No valid data found for any variable",
+            fg=typer.colors.BRIGHT_YELLOW
+        )
+    else:
+        typer.echo("\n\nMissing Days per Gage Variable")
+        typer.echo("----------------------------------")
+        typer.echo(missing.to_string())
 
 
 @app.command()

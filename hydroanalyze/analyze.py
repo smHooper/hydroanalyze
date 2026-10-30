@@ -373,6 +373,65 @@ class RiverData:
         )
 
 
+    def missing_days(self, variable: str, within_record: bool = True) -> pd.DataFrame:
+        """
+        Count days without a valid value for each water year.
+
+        A day counts as present if it has at least one non-NA value, so both
+        absent rows and NaN values are counted as missing.
+
+        :param str variable: Column to check
+        :param bool within_record: If True, only count days between the first
+            and last valid value for this variable, so partial years at the
+            start/end of the record aren't reported as mostly missing. If False,
+            measure against complete water years (Oct 1 - Sep 30).
+        :returns: DataFrame indexed by water year with columns 'expected_days',
+            'valid_days' and 'missing_days'
+        :rtype: pandas.DataFrame
+        """
+        if variable not in self.data.columns:
+            raise ValueError(f'{variable} not found in dataset.')
+
+        valid = self.data[variable].dropna()
+        if valid.empty:
+            raise ValueError(f'All values in "{variable}" column are NaN.')
+
+        # Distinct calendar days that have at least one valid value
+        valid_days = pd.DatetimeIndex(valid.index.normalize().unique())
+
+        first, last = valid_days.min(), valid_days.max()
+        if not within_record:
+            # Extend to whole water years
+            first = pd.Timestamp(first.year - (first.month < 10), 10, 1)
+            last = pd.Timestamp(last.year + (last.month >= 10), 9, 30)
+
+        all_days = pd.date_range(first, last, freq='D')
+
+        def water_year(idx: pd.DatetimeIndex):
+            return idx.year + (idx.month >= 10)
+
+        expected = (
+            pd.Series(1, index=all_days)
+                .groupby(water_year(all_days))
+                .sum()
+        )
+        present = (
+            pd.Series(1, index=valid_days)
+                .groupby(water_year(valid_days))
+                .sum()
+        )
+
+        result = pd.DataFrame({
+            'expected_days': expected, 
+            'valid_days': present
+        })
+        result.valid_days = result.valid_days.fillna(0).astype(int)
+        result['missing_days'] = result.expected_days - result.valid_days
+        result.index.name = 'water_year'
+        
+        return result
+
+
     def save_xml(self, xml_bytes: bytes, overwrite: bool = False) -> Path:
         """
         Save the raw XML
