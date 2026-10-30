@@ -200,6 +200,13 @@ def info(
         "--data-source", 
         case_sensitive=False,
         help="Search for gage data from the specified source. Options: NOAA, USGS"
+    ),
+    missing_days_var: str | None = typer.Option(
+        None, 
+        "--missing-days",
+        metavar="VARIABLE",
+        help="Show the number of missing days in each water year for the " 
+            "specified variable",
     )
 ):
     """
@@ -207,7 +214,13 @@ def info(
     missing days for a gage.
     """
     
+    """
+    Show the metadata, period of record, incomplete water years, and optionally 
+    missing days for a gage.
+    """
+    
     river, _ = _load(gage_id, out, data_source)
+    data_ranges = river.data_ranges()
 
     # Show metadata
     if river.metadata is None:
@@ -218,30 +231,50 @@ def info(
     else:
         typer.echo(river.metadata.pretty_print())
 
-    # Show date ranges
-    typer.echo("\nDate Ranges per Gage Varaible")
-    typer.echo("-----------------------------")
-    data_ranges = river.data_ranges()
-    typer.echo(data_ranges.to_string())
-    
-    # Show missing days
-    missing_day_counts = {}
-    for variable in data_ranges.columns:
+    # Show available data variables
+    typer.echo(f'\nAvailable Data Variables: {", ".join(data_ranges.columns)}\n')
+
+    # Show the number of missing days per year for the specified variable 
+    #   if the user gave one
+    if missing_days_var:
         try:
-            missing_day_counts[variable] = \
-                river.missing_days(variable).missing_days
-        except:
-            missing_day_counts[variable] = {}
-    missing = DataFrame(missing_day_counts)
-    if missing.empty:
-        typer.secho(
-            "\nWARNING: No valid data found for any variable",
-            fg=typer.colors.BRIGHT_YELLOW
-        )
+            table = river.missing_days(missing_days_var)
+        except ValueError as e:
+            typer.secho(f"Error: {e}", fg=typer.colors.RED, err=True)
+            raise typer.Exit(1)
+
+        gaps = table[table["missing_days"] > 0]
+        typer.echo(f"\nMissing days per water year ({missing_days_var}):")
+        if gaps.empty:
+            typer.echo("  None. Every water year in the record is complete.")
+        else:
+            typer.echo(gaps.to_string())
+            typer.echo(f"\n{len(gaps)} of {len(table)} water years have gaps "
+                    f"({int(gaps['missing_days'].sum())} missing days total).")
     else:
-        typer.echo("\n\nMissing Days per Gage Variable")
-        typer.echo("----------------------------------")
-        typer.echo(missing.to_string())
+        # Show date ranges
+        typer.echo("\nDate Ranges per Data Varaible")
+        typer.echo(  "-----------------------------")
+        typer.echo(data_ranges.to_string())
+        
+        # Show missing days
+        missing_day_counts = {}
+        for variable in data_ranges.columns:
+            try:
+                missing_day_counts[variable] = \
+                    river.missing_days(variable).missing_days
+            except:
+                missing_day_counts[variable] = {}
+        missing = DataFrame(missing_day_counts)
+        if missing.empty:
+            typer.secho(
+                "\nWARNING: No valid data found for any variable",
+                fg=typer.colors.BRIGHT_YELLOW
+            )
+        else:
+            typer.echo("\n\nMissing Days per Gage Variable")
+            typer.echo(    "------------------------------")
+            typer.echo(missing.to_string())
 
 
 @app.command()
