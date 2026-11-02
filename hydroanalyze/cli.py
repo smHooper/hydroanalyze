@@ -34,7 +34,6 @@ app = typer.Typer(
     add_completion=False,
 )
 
-
 class Metric(str, Enum):
     """CLI-facing analyses. Value is what the user types."""
 
@@ -564,6 +563,5 @@ def add_noaa_data(
     raise typer.Exit(code)
 
 
-
 if __name__ == "__main__":
-    app()
+    app(prog_name="hydroanalyze") # sets cmd name in Usage: section of help
