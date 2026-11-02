@@ -70,10 +70,12 @@ def get_noaa_data_path(config:Optional[dict]={}) -> Path:
     return Path(config['NOAA_DATA_PATH']).resolve()
 
 
-def unique_filename(path: Path) -> Path:
+def unique_filename(path: str | PathLike) -> Path:
     """
     Return path, or path with _1, _2... appended if it already exists.
     """
+    
+    path = Path(path) #wrap to accept str
     counter = 1
     new_path = path
     while new_path.exists():
