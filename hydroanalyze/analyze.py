@@ -20,31 +20,9 @@ from metadata import (
     USGSMetadata,
     XML_NAMESPACES
 )
+from utils.helpers import unique_filename
 
 INT_DTYPE = 'Int64'
-
-
-# ==========================================================
-# File Management
-# ==========================================================
-class FileManager:
-    def __init__(self, base_dir: Path):
-        self.base_dir = base_dir
-
-    def ensure_directory(self, name: str) -> Path:
-        path = self.base_dir / name
-        path.mkdir(parents=True, exist_ok=True)
-        return path
-
-    def unique_filename(self, path: Path) -> Path:
-        counter = 1
-        new_path = path
-
-        while new_path.exists():
-            new_path = path.with_stem(f'{path.stem}_{counter}')
-            counter += 1
-
-        return new_path
 
 
 # ==========================================================
@@ -71,11 +49,10 @@ class RiverData:
         'day_of_year'
     ]
 
-    def __init__(self, gage_id: str, base_dir: Path):
+    def __init__(self, gage_id: str):
         self.gage_name: str | None = None
         self.gage_id: str = gage_id
         self._metadata: Metadata | None = None
-        self.file_manager = FileManager(base_dir)
 
         self.data = pd.DataFrame()
         self._record_ranges = pd.DataFrame()
@@ -432,23 +409,31 @@ class RiverData:
         return result
 
 
-    def save_xml(self, xml_bytes: bytes, overwrite: bool = False) -> Path:
+    def save_xml(
+            self, 
+            xml_bytes: bytes, 
+            out_dir: str | PathLike, 
+            overwrite: bool = False
+        ) -> Path:
         """
         Save the raw XML
 
         :param bytes xml_bytes: The raw XML data as bytes, typically obtained 
             from the USGS web service
+        :param str | PathLike out_dir: The output directory where the XML file 
+            will be saved.
         :param bool overwrite: Overwrite an existing file if exists. 
             Default: False
         :returns: The path to the saved XML file
         :rtype: pathlib.Path
 
         """
-        self.directory = self.file_manager.ensure_directory(self.gage_id)
-
-        filename = self.directory / f'{self.gage_id}_data.xml'
+        
+        directory = Path(out_dir) / self.gage_id
+        directory.mkdir(parents=True, exist_ok=True)
+        filename = directory / f'{self.gage_id}_data.xml'
         if not overwrite:
-            filename = self.file_manager.unique_filename(filename)
+            filename = unique_filename(filename)
 
         filename.write_bytes(xml_bytes)
 
@@ -457,11 +442,15 @@ class RiverData:
 
     def to_csv(
             self, 
+            out_dir: str | PathLike,
             save_metadata: bool = True, 
             overwrite: bool = False
         ) -> Path:
         """
         Save data as a CSV
+
+        :param str | PathLike out_dir: The output directory where the CSV file 
+            will be saved.
         :param bool overwrite: Overwrite an existing file if exists.
             Default: False
         :returns: The path to the saved CSV file
@@ -470,13 +459,11 @@ class RiverData:
         if self.data is None:
             raise ValueError("No data loaded to save.")
 
-        self.directory = self.file_manager.ensure_directory(
-            self.gage_id
-        )
-
-        csv_path = self.directory / f'{self.gage_id}_data.csv'
+        directory = Path(out_dir) / self.gage_id
+        directory.mkdir(parents=True, exist_ok=True)
+        csv_path = directory / f'{self.gage_id}_data.csv'
         if not overwrite:
-            csv_path = self.file_manager.unique_filename(csv_path)
+            csv_path = unique_filename(csv_path)
 
         self.data.to_csv(csv_path)
 

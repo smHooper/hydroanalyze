@@ -68,3 +68,16 @@ def get_noaa_data_path(config:Optional[dict]={}) -> Path:
     validate_config(config, ['NOAA_DATA_PATH'])
     
     return Path(config['NOAA_DATA_PATH']).resolve()
+
+
+def unique_filename(path: Path) -> Path:
+    """
+    Return path, or path with _1, _2... appended if it already exists.
+    """
+    counter = 1
+    new_path = path
+    while new_path.exists():
+        new_path = path.with_stem(f"{path.stem}_{counter}")
+        counter += 1
+    
+    return new_path

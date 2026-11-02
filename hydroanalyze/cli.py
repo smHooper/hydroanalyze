@@ -20,9 +20,13 @@ import xml.etree.ElementTree as ET
 from analyze import (
     HydroAnalyzer, 
     RiverData, 
-    USGSClient
+    USGSClient,
+    unique_filename
 )
-from utils.helpers import get_noaa_data_path
+from utils.helpers import (
+    get_noaa_data_path,
+    unique_filename
+)
 from utils.ingest_noaa import (
     DEFAULT_SEARCH_PATTERN,
     ingest
@@ -129,7 +133,6 @@ def _check_flags(ctx: typer.Context, metric: Metric) -> None:
 
 def _load(
         gage_id: str, 
-        out_dir: Path, 
         data_source: str | None = None
     ) -> tuple[RiverData, bytes]:
 
@@ -159,7 +162,7 @@ def _load(
             raise typer.Exit(1)
 
         try:
-            river = RiverData(gage_id, out_dir).load_from_xml(xml)
+            river = RiverData(gage_id).load_from_xml(xml)
         except (ValueError, ET.ParseError) as e:
             typer.secho(
                 f"No timeseries data found for gage ID {gage_id}: {e}",
@@ -169,7 +172,7 @@ def _load(
     else:
         noaa_data_dir = get_noaa_data_path()
         try:
-            river = RiverData(gage_id, out_dir).load_noaa(noaa_data_dir)
+            river = RiverData(gage_id).load_noaa(noaa_data_dir)
         except (ValueError, FileNotFoundError):
             typer.secho(f"Could not find NOAA data for gage {gage_id}. "
                         "Please download the data from NOAA and place it in the output directory.",
@@ -189,10 +192,6 @@ def info(
         ..., 
         metavar="GAGE_ID", 
         help="USGS/NOAA gage ID"
-    ),
-    out: Path = typer.Option(
-        Path("./hydroanalyze_output"), 
-        help="Output folder"
     ),
     data_source: DataSource | None = typer.Option(
         None, 
@@ -218,7 +217,7 @@ def info(
     missing days for a gage.
     """
     
-    river, _ = _load(gage_id, out, data_source)
+    river, _ = _load(gage_id, data_source=data_source)
     data_ranges = river.data_ranges()
 
     # Show metadata
@@ -308,21 +307,17 @@ def fetch(
     Alternatively use the --show-metadata flag to just display the gage's 
     metadata
     """
-    river, xml = _load(
-        gage_id, 
-        out, 
-        data_source
-    )
+    river, xml = _load(gage_id, data_source=data_source)
 
     if show_metadata:
         typer.echo(river.metadata.pretty_print())
         raise typer.Exit(code=0)
     
     if xml:
-        xml_path = river.save_xml(xml, overwrite=overwrite)
+        xml_path = river.save_xml(xml, out, overwrite=overwrite)
         typer.echo(f"Saved {xml_path.resolve()}")
     
-    csv_path = river.to_csv(overwrite=overwrite)
+    csv_path = river.to_csv(out, overwrite=overwrite)
     typer.echo(f"Saved {csv_path.resolve()}")
 
 
@@ -419,7 +414,7 @@ def analyze(
     # Make sure there aren't any conflicting flags
     _check_flags(ctx, metric)
 
-    river, _ = _load(gage_id, out, data_source)
+    river, _ = _load(gage_id, data_source=data_source)
     h = HydroAnalyzer(river)
     
     if from_date is not None:
@@ -470,7 +465,7 @@ def analyze(
     out.mkdir(parents=True, exist_ok=True)
     path = out / f"{gage_id}_{metric.value}.csv"
     if not overwrite:
-        path = river.file_manager.unique_filename()
+        path = unique_filename(path)
     result.to_csv(path)
     
     typer.echo(f"Saved {path}")
@@ -494,6 +489,7 @@ def metrics():
         if m.options:
             typer.secho(f"{'':<{width}}  Options: ", fg=typer.colors.CYAN, nl=False)
             typer.secho(", ".join(m.options), fg=typer.colors.BRIGHT_CYAN)
+
 
 @app.command(name="add-noaa")
 def add_noaa_data(
