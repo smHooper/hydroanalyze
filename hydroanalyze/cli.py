@@ -19,8 +19,7 @@ import xml.etree.ElementTree as ET
 
 from analyze import (
     HydroAnalyzer, 
-    RiverData, 
-    unique_filename
+    RiverData
 )
 from clients import USGSClient
 from utils.helpers import (
@@ -100,7 +99,6 @@ METRIC_FLAGS = {flag for m in Metric for flag in m.options}
 GageIdArgument = Annotated[
     str,
     typer.Argument(
-        ...,
         metavar="GAGE_ID",
         help="USGS/NOAA gage ID",
     ),
@@ -108,7 +106,6 @@ GageIdArgument = Annotated[
 OutputOption = Annotated[
     Path,
     typer.Option(
-        Path("hydroanalyze_output"),
         "--out",
         help="Output folder",
     ),
@@ -116,7 +113,6 @@ OutputOption = Annotated[
 OverwriteOption = Annotated[
     bool,
     typer.Option(
-        False,
         "--overwrite",
         help="Overwrite existing files. If absent, a unique name "
              "will be assigned to outputs that share an existing filename",
@@ -125,13 +121,13 @@ OverwriteOption = Annotated[
 DataSourceOption = Annotated[
     DataSource | None,
     typer.Option(
-        None,
         "--data-source",
         case_sensitive=False,
         help="Search for gage data from the specified source. "
              "If not specified, infer from the gage ID.",
     ),
 ]
+
 
 def _flags_given(ctx: typer.Context) -> list[str]:
     """
@@ -171,7 +167,7 @@ def _check_flags(ctx: typer.Context, metric: Metric) -> None:
 
 def _load(
         gage_id: str, 
-        data_source: str | None = None
+        data_source: DataSource | None = None
     ) -> tuple[RiverData, bytes]:
 
     # If the user didn't supply the --data_source flag, infer if it's USGS or 
@@ -227,7 +223,7 @@ def _load(
 @app.command()
 def info(
     gage_id: GageIdArgument,
-    data_source: DataSourceOption,
+    data_source: DataSourceOption = None,
     missing_days_var: str | None = typer.Option(
         None, 
         "--missing-days",
@@ -236,11 +232,6 @@ def info(
             "specified variable",
     )
 ):
-    """
-    Show the metadata, period of record, incomplete water years, and optionally 
-    missing days for a gage.
-    """
-    
     """
     Show the metadata, period of record, incomplete water years, and optionally 
     missing days for a gage.
@@ -280,7 +271,7 @@ def info(
                     f"({int(gaps['missing_days'].sum())} missing days total).")
     else:
         # Show date ranges
-        typer.echo("\nDate Ranges per Data Varaible")
+        typer.echo("\nDate Ranges per Data Variable")
         typer.echo(  "-----------------------------")
         typer.echo(data_ranges.to_string())
         
@@ -307,9 +298,9 @@ def info(
 @app.command()
 def fetch(
     gage_id: GageIdArgument,
-    out: OutputOption,
-    data_source: DataSourceOption,
-    overwrite: OverwriteOption,
+    out: OutputOption = Path("hydroanalyze_output"),
+    data_source: DataSourceOption = None,
+    overwrite: OverwriteOption = False,
     show_metadata: bool = typer.Option(
         False, 
         "--show-metadata", 
@@ -356,15 +347,14 @@ def analyze(
     ctx: typer.Context,
 
     gage_id: GageIdArgument,
-    metric: Metric = typer.Argument(
-        ..., 
+    metric: Annotated[Metric, typer.Argument(
         metavar="METRIC",
         help="Analysis to run. Use 'hydroanalyze metrics' to list them."
-    ),
+    )],
     # Optional args
-    out: OutputOption,
-    overwrite: OverwriteOption,
-    data_source: DataSourceOption,
+    out: OutputOption = Path("hydroanalyze_output"),
+    overwrite: OverwriteOption = False,
+    data_source: DataSourceOption = None,
     include_incomplete: bool = typer.Option(
         False, 
         "--include-incomplete", 
