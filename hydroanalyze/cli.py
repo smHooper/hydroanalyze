@@ -564,4 +564,4 @@ def add_noaa_data(
 
 
 if __name__ == "__main__":
-    app(prog_name="hydroanalyze")
+    app(prog_name="hydroanalyze") # sets cmd name in Usage: section of help
