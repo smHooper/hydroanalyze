@@ -14,6 +14,7 @@ from pathlib import Path
 from pandas import DataFrame
 import requests
 import typer
+from typing import Annotated
 import xml.etree.ElementTree as ET
 
 from analyze import (
@@ -93,6 +94,44 @@ class DataSource(str, Enum):
 
 # Every flag that belongs to at least one metric, derived from the enum.
 METRIC_FLAGS = {flag for m in Metric for flag in m.options}
+
+
+# Define options common to multiple commands
+GageIdArgument = Annotated[
+    str,
+    typer.Argument(
+        ...,
+        metavar="GAGE_ID",
+        help="USGS/NOAA gage ID",
+    ),
+]
+OutputOption = Annotated[
+    Path,
+    typer.Option(
+        Path("hydroanalyze_output"),
+        "--out",
+        help="Output folder",
+    ),
+]
+OverwriteOption = Annotated[
+    bool,
+    typer.Option(
+        False,
+        "--overwrite",
+        help="Overwrite existing files. If absent, a unique name "
+             "will be assigned to outputs that share an existing filename",
+    ),
+]
+DataSourceOption = Annotated[
+    DataSource | None,
+    typer.Option(
+        None,
+        "--data-source",
+        case_sensitive=False,
+        help="Search for gage data from the specified source. "
+             "If not specified, infer from the gage ID.",
+    ),
+]
 
 def _flags_given(ctx: typer.Context) -> list[str]:
     """
@@ -187,17 +226,8 @@ def _load(
 
 @app.command()
 def info(
-    gage_id: str = typer.Argument(
-        ..., 
-        metavar="GAGE_ID", 
-        help="USGS/NOAA gage ID"
-    ),
-    data_source: DataSource | None = typer.Option(
-        None, 
-        "--data-source", 
-        case_sensitive=False,
-        help="Search for gage data from the specified source. Options: NOAA, USGS"
-    ),
+    gage_id: GageIdArgument,
+    data_source: DataSourceOption,
     missing_days_var: str | None = typer.Option(
         None, 
         "--missing-days",
@@ -276,25 +306,10 @@ def info(
 
 @app.command()
 def fetch(
-    gage_id: str = typer.Argument(
-        ..., 
-        help="USGS/NOAA gage ID, e.g. 09085100"
-    ),
-    out: Path = typer.Option(
-        Path("hydroanalyze_output"), 
-        help="Output folder"
-    ),
-    data_source: DataSource | None = typer.Option(
-        None, 
-        "--data-source",
-        case_sensitive=False,
-        help="Search for gage data from the specified source. Options: NOAA, USGS"
-    ),
-    overwrite: bool = typer.Option(
-        False,
-        help="Overwrite existing files. If flag is absent, a unique name will"
-            " be assigned to outputs that share an existing filename"
-    ),
+    gage_id: GageIdArgument,
+    out: OutputOption,
+    data_source: DataSourceOption,
+    overwrite: OverwriteOption,
     show_metadata: bool = typer.Option(
         False, 
         "--show-metadata", 
@@ -340,32 +355,16 @@ def _parse_month_day(value: str | None) -> tuple[int, int] | None:
 def analyze(
     ctx: typer.Context,
 
-    gage_id: str = typer.Argument(
-        ..., 
-        metavar="GAGE_ID",
-        help="USGS/NOAA gage ID"
-    ),
+    gage_id: GageIdArgument,
     metric: Metric = typer.Argument(
         ..., 
         metavar="METRIC",
         help="Analysis to run. Use 'hydroanalyze metrics' to list them."
     ),
     # Optional args
-    out: Path = typer.Option(
-        Path("./hydroanalyze_output"), 
-        help="Output folder"
-    ),
-    overwrite: bool = typer.Option(
-        False,
-        help="Overwrite existing files. If flag is absent, a unique name will"
-            " be assigned to outputs that share an existing filename"
-    ),
-    data_source: DataSource | None = typer.Option(
-        None, 
-        "--data-source", 
-        case_sensitive=False,
-        help="Search for gage data from the specified source. Options: NOAA, USGS"
-    ),
+    out: OutputOption,
+    overwrite: OverwriteOption,
+    data_source: DataSourceOption,
     include_incomplete: bool = typer.Option(
         False, 
         "--include-incomplete", 
