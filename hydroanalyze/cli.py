@@ -23,7 +23,10 @@ from analyze import (
     USGSClient,
     unique_filename
 )
-from utils.helpers import get_noaa_data_path
+from utils.helpers import (
+    get_noaa_data_path,
+    unique_filename
+)
 from utils.ingest_noaa import (
     DEFAULT_SEARCH_PATTERN,
     ingest

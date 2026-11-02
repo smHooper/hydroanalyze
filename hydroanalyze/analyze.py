@@ -20,21 +20,9 @@ from metadata import (
     USGSMetadata,
     XML_NAMESPACES
 )
+from utils.helpers import unique_filename
 
 INT_DTYPE = 'Int64'
-
-
-def unique_filename(path: Path) -> Path:
-    """
-    Return path, or path with _1, _2... appended if it already exists.
-    """
-    counter = 1
-    new_path = path
-    while new_path.exists():
-        new_path = path.with_stem(f"{path.stem}_{counter}")
-        counter += 1
-    
-    return new_path
 
 
 # ==========================================================
