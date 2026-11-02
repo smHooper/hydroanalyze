@@ -8,7 +8,6 @@ Contact: samuel_hooper@nps.gov
 
 from __future__ import annotations
 
-from click.core import ParameterSource
 import datetime as dt
 from enum import Enum
 from pathlib import Path
@@ -20,9 +19,9 @@ import xml.etree.ElementTree as ET
 from analyze import (
     HydroAnalyzer, 
     RiverData, 
-    USGSClient,
     unique_filename
 )
+from clients import USGSClient
 from utils.helpers import (
     get_noaa_data_path,
     unique_filename

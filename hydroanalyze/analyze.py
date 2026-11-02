@@ -1,8 +1,5 @@
 from __future__ import annotations
 
-import datetime as dt
-import json
-import requests
 import pandas as pd
 from pathlib import Path
 from os import PathLike
@@ -10,10 +7,7 @@ from typing import Dict, List, Tuple, Optional, Self
 import warnings
 import xml.etree.ElementTree as ET
 
-from clients import (
-    NOAAClient,
-    USGSClient
-)
+
 from metadata import (
     ensure_noaa_metadata,
     Metadata,
