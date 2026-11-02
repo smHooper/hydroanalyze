@@ -94,6 +94,8 @@ class DataSource(str, Enum):
 # Every flag that belongs to at least one metric, derived from the enum.
 METRIC_FLAGS = {flag for m in Metric for flag in m.options}
 
+# Default output directory for hydroanalyze commands
+DEFAULT_OUTPUT_DIR = Path.home() / "desktop" / "hydroanalyze_output"
 
 # Define options common to multiple commands
 GageIdArgument = Annotated[
@@ -298,7 +300,7 @@ def info(
 @app.command()
 def fetch(
     gage_id: GageIdArgument,
-    out: OutputOption = Path("hydroanalyze_output"),
+    out: OutputOption = DEFAULT_OUTPUT_DIR,
     data_source: DataSourceOption = None,
     overwrite: OverwriteOption = False,
     show_metadata: bool = typer.Option(
@@ -352,7 +354,7 @@ def analyze(
         help="Analysis to run. Use 'hydroanalyze metrics' to list them."
     )],
     # Optional args
-    out: OutputOption = Path("hydroanalyze_output"),
+    out: OutputOption = DEFAULT_OUTPUT_DIR,
     overwrite: OverwriteOption = False,
     data_source: DataSourceOption = None,
     include_incomplete: bool = typer.Option(
