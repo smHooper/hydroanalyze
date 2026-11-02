@@ -125,8 +125,9 @@ DataSourceOption = Annotated[
     typer.Option(
         "--data-source",
         case_sensitive=False,
-        help="Search for gage data from the specified source. "
-             "If not specified, infer from the gage ID.",
+        help="Search for gage data from the specified source. If not" 
+        " specified, infer from the gage ID. If the gage ID is all numbers," 
+        " assume USGS; otherwise, assume NOAA.",
     ),
 ]
 
@@ -387,7 +388,8 @@ def analyze(
     long_format: bool = typer.Option(
         False, 
         "--long", 
-        help="Long format instead of a water year x month table ('monthly' only)",
+        help="Long format for output instead of a water year x month table" 
+            " ('monthly' only)",
     ),
     calendar_order: bool = typer.Option(
         False, 
@@ -397,7 +399,7 @@ def analyze(
     ),
 ):
     """
-    Run an analysis and save the result as CSV. All metrics return an annual 
+    Run an analysis and save the result as a CSV. All metrics return an annual 
     result for the entire period of record except for 'monthly' and 
     'fractional-monthly'
     """
@@ -527,7 +529,7 @@ def add_noaa_data(
 
     Stored records are never changed unless you pass --overwrite for that
     gage. Before anything is replaced, the old CSV is backed up and every
-    changed record is logged. Run with --dry-run first to preview.
+    changed record is logged. Run with --dry-run first to preview changes.
 
     Exit codes: 0 = ok, 1 = unreadable files, 2 = conflicting values.
     """
