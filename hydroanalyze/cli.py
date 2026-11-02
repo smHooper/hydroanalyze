@@ -14,12 +14,12 @@ from pathlib import Path
 from pandas import DataFrame
 import requests
 import typer
+from typing import Annotated
 import xml.etree.ElementTree as ET
 
 from analyze import (
     HydroAnalyzer, 
-    RiverData, 
-    unique_filename
+    RiverData
 )
 from clients import USGSClient
 from utils.helpers import (
@@ -94,6 +94,44 @@ class DataSource(str, Enum):
 # Every flag that belongs to at least one metric, derived from the enum.
 METRIC_FLAGS = {flag for m in Metric for flag in m.options}
 
+# Default output directory for hydroanalyze commands
+DEFAULT_OUTPUT_DIR = Path.home() / "desktop" / "hydroanalyze_output"
+
+# Define options common to multiple commands
+GageIdArgument = Annotated[
+    str,
+    typer.Argument(
+        metavar="GAGE_ID",
+        help="USGS/NOAA gage ID",
+    ),
+]
+OutputOption = Annotated[
+    Path,
+    typer.Option(
+        "--out",
+        help="Output folder",
+    ),
+]
+OverwriteOption = Annotated[
+    bool,
+    typer.Option(
+        "--overwrite",
+        help="Overwrite existing files. If absent, a unique name "
+             "will be assigned to outputs that share an existing filename",
+    ),
+]
+DataSourceOption = Annotated[
+    DataSource | None,
+    typer.Option(
+        "--data-source",
+        case_sensitive=False,
+        help="Search for gage data from the specified source. If not" 
+        " specified, infer from the gage ID. If the gage ID is all numbers," 
+        " assume USGS; otherwise, assume NOAA.",
+    ),
+]
+
+
 def _flags_given(ctx: typer.Context) -> list[str]:
     """
     Flag strings (e.g. '--stat') the user typed on the command line.
@@ -132,7 +170,7 @@ def _check_flags(ctx: typer.Context, metric: Metric) -> None:
 
 def _load(
         gage_id: str, 
-        data_source: str | None = None
+        data_source: DataSource | None = None
     ) -> tuple[RiverData, bytes]:
 
     # If the user didn't supply the --data_source flag, infer if it's USGS or 
@@ -187,17 +225,8 @@ def _load(
 
 @app.command()
 def info(
-    gage_id: str = typer.Argument(
-        ..., 
-        metavar="GAGE_ID", 
-        help="USGS/NOAA gage ID"
-    ),
-    data_source: DataSource | None = typer.Option(
-        None, 
-        "--data-source", 
-        case_sensitive=False,
-        help="Search for gage data from the specified source. Options: NOAA, USGS"
-    ),
+    gage_id: GageIdArgument,
+    data_source: DataSourceOption = None,
     missing_days_var: str | None = typer.Option(
         None, 
         "--missing-days",
@@ -206,11 +235,6 @@ def info(
             "specified variable",
     )
 ):
-    """
-    Show the metadata, period of record, incomplete water years, and optionally 
-    missing days for a gage.
-    """
-    
     """
     Show the metadata, period of record, incomplete water years, and optionally 
     missing days for a gage.
@@ -250,7 +274,7 @@ def info(
                     f"({int(gaps['missing_days'].sum())} missing days total).")
     else:
         # Show date ranges
-        typer.echo("\nDate Ranges per Data Varaible")
+        typer.echo("\nDate Ranges per Data Variable")
         typer.echo(  "-----------------------------")
         typer.echo(data_ranges.to_string())
         
@@ -276,25 +300,10 @@ def info(
 
 @app.command()
 def fetch(
-    gage_id: str = typer.Argument(
-        ..., 
-        help="USGS/NOAA gage ID, e.g. 09085100"
-    ),
-    out: Path = typer.Option(
-        Path("hydroanalyze_output"), 
-        help="Output folder"
-    ),
-    data_source: DataSource | None = typer.Option(
-        None, 
-        "--data-source",
-        case_sensitive=False,
-        help="Search for gage data from the specified source. Options: NOAA, USGS"
-    ),
-    overwrite: bool = typer.Option(
-        False,
-        help="Overwrite existing files. If flag is absent, a unique name will"
-            " be assigned to outputs that share an existing filename"
-    ),
+    gage_id: GageIdArgument,
+    out: OutputOption = DEFAULT_OUTPUT_DIR,
+    data_source: DataSourceOption = None,
+    overwrite: OverwriteOption = False,
     show_metadata: bool = typer.Option(
         False, 
         "--show-metadata", 
@@ -340,32 +349,15 @@ def _parse_month_day(value: str | None) -> tuple[int, int] | None:
 def analyze(
     ctx: typer.Context,
 
-    gage_id: str = typer.Argument(
-        ..., 
-        metavar="GAGE_ID",
-        help="USGS/NOAA gage ID"
-    ),
-    metric: Metric = typer.Argument(
-        ..., 
+    gage_id: GageIdArgument,
+    metric: Annotated[Metric, typer.Argument(
         metavar="METRIC",
         help="Analysis to run. Use 'hydroanalyze metrics' to list them."
-    ),
+    )],
     # Optional args
-    out: Path = typer.Option(
-        Path("./hydroanalyze_output"), 
-        help="Output folder"
-    ),
-    overwrite: bool = typer.Option(
-        False,
-        help="Overwrite existing files. If flag is absent, a unique name will"
-            " be assigned to outputs that share an existing filename"
-    ),
-    data_source: DataSource | None = typer.Option(
-        None, 
-        "--data-source", 
-        case_sensitive=False,
-        help="Search for gage data from the specified source. Options: NOAA, USGS"
-    ),
+    out: OutputOption = DEFAULT_OUTPUT_DIR,
+    overwrite: OverwriteOption = False,
+    data_source: DataSourceOption = None,
     include_incomplete: bool = typer.Option(
         False, 
         "--include-incomplete", 
@@ -396,7 +388,8 @@ def analyze(
     long_format: bool = typer.Option(
         False, 
         "--long", 
-        help="Long format instead of a water year x month table ('monthly' only)",
+        help="Long format for output instead of a water year x month table" 
+            " ('monthly' only)",
     ),
     calendar_order: bool = typer.Option(
         False, 
@@ -406,7 +399,7 @@ def analyze(
     ),
 ):
     """
-    Run an analysis and save the result as CSV. All metrics return an annual 
+    Run an analysis and save the result as a CSV. All metrics return an annual 
     result for the entire period of record except for 'monthly' and 
     'fractional-monthly'
     """
@@ -536,7 +529,7 @@ def add_noaa_data(
 
     Stored records are never changed unless you pass --overwrite for that
     gage. Before anything is replaced, the old CSV is backed up and every
-    changed record is logged. Run with --dry-run first to preview.
+    changed record is logged. Run with --dry-run first to preview changes.
 
     Exit codes: 0 = ok, 1 = unreadable files, 2 = conflicting values.
     """
