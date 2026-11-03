@@ -22,6 +22,7 @@ from analyze import (
     RiverData
 )
 from clients import USGSClient
+from metadata import list_saved_metadata
 from utils.helpers import (
     get_noaa_data_path,
     unique_filename
@@ -481,6 +482,47 @@ def metrics():
         if m.options:
             typer.secho(f"{'':<{width}}  Options: ", fg=typer.colors.CYAN, nl=False)
             typer.secho(", ".join(m.options), fg=typer.colors.BRIGHT_CYAN)
+
+@app.command()
+def gages(
+    search: str | None = typer.Option(
+        None, 
+        "--search", 
+        help="Only show gages whose ID or name contains this text"
+    )
+):
+    """
+    List the NOAA gages available in the local data store.
+    """
+    try:
+        found = list_saved_metadata(get_noaa_data_path())
+    except ValueError as e:
+        typer.secho(f"Error: {e}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(1)
+
+    if search:
+        s = search.lower()
+        found = [
+            g for g in found 
+            if s in g.gage_id.lower() 
+                or s in (g.gage_name or "").lower()
+        ]
+
+    if not found:
+        typer.secho(
+            "No gages found. Use 'hydroanalyze ingest-noaa' to add data.",
+            fg=typer.colors.BRIGHT_YELLOW
+        )
+        return
+
+    for g in found:
+        line = f"{g.gage_id:<7}{g.gage_name or '(no metadata)':<45}"
+        typer.echo(line)
+    
+    typer.echo(f"\n{len(found)} gage(s)." 
+               "\n\n"
+               "Run hydroanalyze info GAGE_ID for more details"
+    )
 
 
 @app.command(name="add-noaa")

@@ -270,3 +270,24 @@ def ensure_noaa_metadata(
         meta.save(data_dir)
     
     return meta
+
+
+def list_saved_metadata(data_dir: str | PathLike) -> list[Metadata]:
+    """
+    Metadata for every gage CSV in data_dir (a bare Metadata if its _meta.json 
+    is missing).
+
+    :param data_dir: The directory containing NOAA gage CSV files.
+    :return: A list of Metadata objects for the gages found in the specified 
+    directory.
+    """
+    data_dir = Path(data_dir)
+    if not data_dir.exists():
+        raise ValueError(f"NOAA data directory {data_dir} does not exist.")
+    found = []
+    for csv in sorted(data_dir.glob("*.csv")):
+        if csv.stem.endswith("_overwrites"):
+            continue
+        found.append(Metadata.load(data_dir, csv.stem) or Metadata(gage_id=csv.stem))
+
+    return found
