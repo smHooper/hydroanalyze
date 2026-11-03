@@ -22,4 +22,7 @@ if not exist "%PACKAGE_DIR%\cli.py" (
 
 set "PYTHONDONTWRITEBYTECODE=1"
 set "PATH=%ENV%;%ENV%\Library\bin;%ENV%\Scripts;%PACKAGE_DIR%;%PACKAGE_DIR%\%PROJECT_NAME%;%PATH%"
+
 "%ENV%\python.exe" %PACKAGE_DIR%\cli.py %*
+
+exit /b %ERRORLEVEL%
