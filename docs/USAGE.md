@@ -12,8 +12,6 @@ The CLI provides tools to:
 
 ## Getting Started
 
-The CLI executable is `hydroanalyze`. If you did not add the 
-
 To see the available commands:
 
 ```bash
