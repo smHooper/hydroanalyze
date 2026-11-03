@@ -1,4 +1,6 @@
 @echo off
+setlocal
+
 set "PROJECT_NAME=hydroanalyze"
 set "PACKAGE_DIR=%~dp0%PROJECT_NAME%"
 set "ENV=%HYDROANALYZE_ENV%"
