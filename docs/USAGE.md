@@ -2,13 +2,27 @@
 
 HydroAnalyze is a command-line interface (CLI) for retrieving, managing, and analyzing river gage data from the U.S. Geological Survey (USGS) and the National Oceanic and Atmospheric Administration (NOAA).
 
-The CLI provides tools to:
+## Table of Contents
+- [Getting started](#getting-started)
+- [Commands](#commands)
+  - [`info`](#info--inspect-a-gage) - get gage info
+  - [`fetch`](#fetch--retrieve-and-save-gage-data) - retrieve and save gage data
+  - [`analyze`](#analyze--run-a-hydrologic-analysis) - run a hydrologic analysis
+  - [`metrics`](#metrics--list-available-analyses) - list available analysis
+  - [`gages`](#gages--list-available-noaa-gages) - list available NOAA gages
+  - [`add-noaa`](#add-noaa--add-noaa-data-to-the-local-data-store) - add NOAA data to the local data store
+- [Available Analysis Metrics](#available-metrics)
+  - [`total-discharge`](#total-discharge)
+  - [`mean-discharge`](#mean-discharge)
+  - [`max`](#max)
+  - [`monthly`](#monthly)
+  - [`spring-pulse`](#spring-pulse)
+  - [`center-of-mass`](#center-of-mass)
+  - [`fractional-monthlly`](#fractional-monthly)
+- [Water Years](#water-years)
+- [Output Files and Overwriting](#output-files-and-overwriting)
 
-- Retrieve and inspect gage data.
-- Examine gage metadata, periods of record, and missing data.
-- Run hydrologic analyses and export results to CSV.
-- Manage locally stored NOAA gage data.
-- Discover which NOAA gages are available in the local data store.
+
 
 ## Getting Started
 
@@ -55,7 +69,8 @@ The source name is case-insensitive.
 
 **Note:** NOAA data must first be downloaded and added to the local data store before it can be accessed through HydroAnalyze. See [add-noaa](#add-noaa--add-noaa-data-to-the-local-data-store).
 
----
+[Back to top](#table-of-contents)
+
 
 ## Commands
 
@@ -111,8 +126,9 @@ The default output includes:
 
 When `--missing-days` is specified, the output instead lists only water years with missing days for the requested variable.
 
----
+[Back to top](#table-of-contents)
 
+---
 ### `fetch` — Retrieve and Save Gage Data
 
 Retrieve gage data and save it locally.
@@ -183,8 +199,9 @@ For NOAA gages, the command saves:
 
 If an output file already exists, HydroAnalyze generates a unique filename rather than overwriting the existing file. Use `--overwrite` to replace existing files.
 
----
+[Back to top](#table-of-contents)
 
+---
 ### `analyze` — Run a Hydrologic Analysis
 
 Run a hydrologic analysis on a gage's period of record and save the results as a CSV.
@@ -296,8 +313,9 @@ If a file with the same name already exists, HydroAnalyze generates a unique fil
 
 The first ten rows of the results are also displayed in the terminal.
 
----
+[Back to top](#table-of-contents)
 
+---
 ### `metrics` — List Available Analyses
 
 Display all available analyses and the options supported by each.
@@ -312,8 +330,9 @@ This command displays each metric's description and its metric-specific options.
 
 See [Available Metrics](#available-metrics) for descriptions of each analysis.
 
----
+[Back to top](#table-of-contents)
 
+---
 ### `gages` — List Available NOAA Gages
 
 List NOAA gages available in the local data store.
@@ -354,8 +373,9 @@ The command displays the gage ID and name for each matching gage.
 
 If no gages are found, the command suggests using `add-noaa` to add data.
 
----
+[Back to top](#table-of-contents)
 
+---
 ### `add-noaa` — Add NOAA Data to the Local Data Store
 
 Import raw NOAA gage data files into the local NOAA data store.
@@ -442,8 +462,9 @@ The import process is designed to protect existing data:
 | `1` | One or more files were unreadable. |
 | `2` | Conflicting values were detected. |
 
----
+[Back to top](#table-of-contents)
 
+---
 ## Available Metrics
 
 HydroAnalyze currently supports seven analyses.
@@ -454,8 +475,9 @@ All metrics return annual results for the period of record, except `monthly` and
 
 Calculates the total volume of water passing the gage during each water year.
 
-- Units: cubic feet.
+- Units: cubic feet per second.
 - Option: `--include-incomplete`.
+- **Requires `discharge_cfs` column in the gage data. Run `hydroanalyze info GAGE_ID` to see available columns
 
 By default, incomplete water years are excluded.
 
@@ -471,6 +493,7 @@ Calculates the mean annual discharge for each water year.
 
 - Units: cubic feet per second.
 - Option: `--include-incomplete`.
+- **Requires `discharge_cfs` column in the gage data. Run `hydroanalyze info GAGE_ID` to see available columns
 
 By default, incomplete water years are excluded.
 
@@ -550,6 +573,7 @@ Calculates the onset date of the spring snowmelt pulse for each water year using
 
 - Default variable: `discharge_cfs`.
 - Option: `--variable`.
+- **Requires `discharge_cfs` column in the gage data. Run `hydroanalyze info GAGE_ID` to see available columns
 
 Example:
 
@@ -587,6 +611,7 @@ Results are expressed as percentages of the water year's total flow.
 - Options:
   - `--include-incomplete`
   - `--calendar-order`
+  - **Requires `discharge_cfs` column in the gage data. Run `hydroanalyze info GAGE_ID` to see available columns
 
 By default, months are ordered by water year (October–September). Use `--calendar-order` to return January–December instead.
 
@@ -600,7 +625,8 @@ hydroanalyze analyze 15515500 fractional-monthly
 hydroanalyze analyze 15515500 fractional-monthly --calendar-order
 ```
 
----
+[Back to top](#table-of-contents)
+
 
 ## Water Years
 
