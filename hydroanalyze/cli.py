@@ -239,6 +239,10 @@ def info(
     """
     Show the metadata, period of record, incomplete water years, and optionally 
     missing days for a gage.
+
+    Examples:
+        hydroanalyze info RLYA2
+        hydroanalyze info RLYA2 --missing-days stage_ft
     """
     
     river, _ = _load(gage_id, data_source=data_source)
@@ -315,6 +319,11 @@ def fetch(
     Fetch data for a gage and save the raw XML (if USGS) and a CSV. 
     Alternatively use the --show-metadata flag to just display the gage's 
     metadata
+
+    Examples:
+        hydroanalyze fetch RLYA2
+        hydroanalyze fetch SRDA2 --show-metadata
+        hydroanalyze fetch TEDA2 --overwrite --out path/to/folder
     """
     river, xml = _load(gage_id, data_source=data_source)
 
@@ -403,6 +412,11 @@ def analyze(
     Run an analysis and save the result as a CSV. All metrics return an annual 
     result for the entire period of record except for 'monthly' and 
     'fractional-monthly'
+
+    Examples:
+        hydroanalyze analyze RLYA2 max --variable stage_ft --include-incomplete
+        hydroanalyze analyze MKNA2 monthly --stat all --variable stage_ft --out path/to/folder
+        hydroanalyze analyze ICDA2 spring_pulse --variable stage_ft --from-date 05-01
     """
     # Make sure there aren't any conflicting flags
     _check_flags(ctx, metric)
@@ -493,6 +507,10 @@ def gages(
 ):
     """
     List the NOAA gages available in the local data store.
+
+    Examples:  
+        hydroanalyze gages
+        hydroanalyze gages --search RLYA2
     """
     try:
         found = list_saved_metadata(get_noaa_data_path())
@@ -527,6 +545,23 @@ def gages(
 
 @app.command(name="add-noaa")
 def add_noaa_data(
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Report what would happen without writing anything",
+    ),
+    overwrite: list[str] | None = typer.Option(
+        None,
+        "--overwrite",
+        metavar="GAGE",
+        help="Allow new values to replace stored values for this gage ID. "
+             "Repeat the flag for several gages.",
+    ),
+    skip_bad_files: bool = typer.Option(
+        False,
+        "--skip-bad-files",
+        help="Ingest the good files even if some matching files are unreadable",
+    ),
     search_dir: Path = typer.Argument(
         ...,
         metavar="SEARCH_DIR",
@@ -546,24 +581,8 @@ def add_noaa_data(
         "--config",
         exists=True,
         dir_okay=False,
-        help="Path to the config file (default: search for it automatically)",
-    ),
-    overwrite: list[str] | None = typer.Option(
-        None,
-        "--overwrite",
-        metavar="GAGE",
-        help="Allow new values to replace stored values for this gage ID. "
-             "Repeat the flag for several gages.",
-    ),
-    dry_run: bool = typer.Option(
-        False,
-        "--dry-run",
-        help="Report what would happen without writing anything",
-    ),
-    skip_bad_files: bool = typer.Option(
-        False,
-        "--skip-bad-files",
-        help="Ingest the good files even if some matching files are unreadable",
+        help="Path to the config file (default: search for it automatically)."
+            " Only set this if you want to override the default config file",
     ),
 ):
     """
@@ -574,6 +593,10 @@ def add_noaa_data(
     changed record is logged. Run with --dry-run first to preview changes.
 
     Exit codes: 0 = ok, 1 = unreadable files, 2 = conflicting values.
+
+    Examples:
+        hydroanalyze add-noaa /path/to/noaa/data --dry-run
+        hydroanalyze add-noaa /path/to/noaa/data --overwrite RLYA2 --overwrite SRDA2 
     """
     try:
         code = ingest(
