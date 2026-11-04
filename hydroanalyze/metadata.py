@@ -76,8 +76,11 @@ class Metadata:
 
     def pretty_print(self, all: Optional[bool]=False) -> str:
         
-        fetched_date = dt.datetime.fromisoformat(self.fetched_at)\
-            .strftime('%B %d, %Y %I:%M %p')
+        if not self.fetched_at:
+            fetched_date = None
+        else:
+            fetched_date = dt.datetime.fromisoformat(self.fetched_at)\
+                .strftime('%B %d, %Y %I:%M %p')
 
         if all:
             return json.dumps(self.as_dict(), indent=4)
