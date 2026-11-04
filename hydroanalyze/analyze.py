@@ -456,8 +456,10 @@ class RiverData:
         :returns: The path to the saved CSV file
         :rtype: pathlib.Path
         """
-        if self.data is None:
-            raise ValueError("No data loaded to save.")
+        if not isinstance(self.data, pd.DataFrame):
+            raise ValueError(
+                f"data must be pandas.DataFrame, not {type(self.data)}"
+            )
 
         directory = Path(out_dir) / self.gage_id
         directory.mkdir(parents=True, exist_ok=True)
