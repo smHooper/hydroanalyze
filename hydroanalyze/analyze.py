@@ -848,7 +848,10 @@ class HydroAnalyzer:
         centers_of_mass = {}
 
         # Calculate missing days for each water year
-        missing_days = self.river.missing_days('discharge_cfs')
+        missing_days = self.river.missing_days(
+            'discharge_cfs', 
+            within_record=False
+        )
 
         for water_year, df in self.river.data.groupby("water_year"):
 
