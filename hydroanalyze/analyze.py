@@ -209,7 +209,7 @@ class RiverData:
 
         df["water_doy"] = (df.index - wy_start).dt.days + 1
 
-        df['day_of_year'] = df.index.dayofyear
+        df['day_of_year'] = df.index.day_of_year
 
         # Convert all columns to nullable Int64
         for col in self.NON_VARIABLE_COLUMNS:
@@ -323,7 +323,7 @@ class RiverData:
         if variable not in self.data.columns:
             raise ValueError(f"{variable} not found in dataset.")
 
-        if "water_year" not in df.columns:
+        if "water_year" not in self.data.columns:
             self.get_water_year()
             
         df = self.data.copy()
