@@ -861,10 +861,6 @@ class HydroAnalyzer:
                 centers_of_mass[water_year] =  pd.NA
                 continue
 
-            if df.discharge_cfs.isna().any():
-                centers_of_mass[water_year] =  pd.NA
-                continue
-
             # --- Center of mass calculation ---
             numerator = (df.water_doy * df.discharge_cfs).sum()
             denominator = df.discharge_cfs.sum()
