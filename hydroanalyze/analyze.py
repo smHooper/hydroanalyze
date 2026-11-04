@@ -845,13 +845,13 @@ class HydroAnalyzer:
         df = self.river.data
 
         centers_of_mass = {}
+
+        # Calculate missing days for each water year
+        missing_days = self.river.missing_days('discharge_cfs')
+
         for water_year, df in self.river.data.groupby("water_year"):
 
-            # --- Check full year length (365 or 366 days) ---
-            start = df.index.min()
-            end = df.index.max()
-            expected_days = (end - start).days + 1
-            if len(df) != expected_days:
+            if missing_days.loc[water_year, 'missing_days'] > 0:
                 centers_of_mass[water_year] =  pd.NA
                 continue
 
@@ -870,7 +870,7 @@ class HydroAnalyzer:
             center_day = int(round(numerator / denominator))
 
             # Convert back to calendar date
-            center_date = start + pd.Timedelta(days=center_day - 1)
+            center_date = df.index.min() + pd.Timedelta(days=center_day - 1)
 
             centers_of_mass[water_year] = center_date
 
