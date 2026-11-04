@@ -118,7 +118,7 @@ def read_noaa_file(file_path: Path, comment_char: Optional[str]) -> pd.DataFrame
         )
     )
     if len(missing_columns) > 0:
-        raise RuntimeError(
+        raise ValueError(
             f'File is missing columns: {", ".join(missing_columns)}'
         )
     
