@@ -136,7 +136,9 @@ class RiverData:
         df_wide.columns = ['_'.join(a) for a in df_wide.columns.to_flat_index()]
         
         # Discharge will always be a daily mean
-        df_wide.rename(columns={'discharge_cfs_mean': 'discharge_cfs'}, inplace=True)
+        df_wide = df_wide.rename(
+            columns={'discharge_cfs_mean': 'discharge_cfs'}
+        )
 
         # Sort chronologically
         df_wide = df_wide.sort_index()
@@ -756,9 +758,8 @@ class HydroAnalyzer:
             1:"Jan",2:"Feb",3:"Mar",4:"Apr",5:"May",6:"Jun",
             7:"Jul",8:"Aug",9:"Sep",10:"Oct",11:"Nov",12:"Dec"
         }
-        result.rename(columns=month_names, inplace=True)
 
-        return result
+        return result.rename(columns=month_names)
 
 
     def spring_pulse(
@@ -931,6 +932,6 @@ class HydroAnalyzer:
                 .loc[:, ['month', 'month_name']]
                 .set_index('month')['month_name']
         )
-        fractional_flow.rename(columns=month_names, inplace=True)
+        fractional_flow = fractional_flow.rename(columns=month_names)
 
         return self.ensure_annual_result_range(fractional_flow)
