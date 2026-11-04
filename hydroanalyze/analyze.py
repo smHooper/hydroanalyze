@@ -739,9 +739,10 @@ class HydroAnalyzer:
             incomplete = self.river.incomplete_months(variable)
             result.loc[incomplete] = pd.NA
 
-        result = result.rename(f"{variable}_{stat}")
+        if not stat == 'all':
+            result = result.rename(f"{variable}_{stat}")
 
-        if stat == "all" or not pivot:
+        if stat == 'all' or not pivot:
             return result.reset_index()
 
         # Pivot to water_year x month matrix
