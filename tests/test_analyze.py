@@ -345,6 +345,12 @@ class TestToCsv:
         back = pd.read_csv(path, index_col=0, parse_dates=True)
         assert back['discharge_cfs'].tolist() == [1.0, 2.0, 3.0]
 
+    def test_invalid_data_raises(self, tmp_path, river_factory):
+        river = river_factory(values=[1.0])
+        river.data = None
+        with pytest.raises(ValueError, match='No data loaded to save'):
+            river.to_csv(tmp_path)
+            
     def test_can_skip_metadata(self, tmp_path, river_factory):
         river = river_factory(values=[1.0])
         river._metadata = Metadata(gage_id='TEST')
