@@ -75,14 +75,18 @@ class RiverData:
 
         ns = XML_NAMESPACES
         root = ET.fromstring(xml_bytes)
-
+        timeseries = root.findall(".//ns1:timeSeries", ns)
+        if len(timeseries) == 0:
+            raise ValueError(
+                f'No timeseries data found for gage ID {self.gage_id}'
+            )
+        
         self._metadata = USGSMetadata.from_xml(root)
         self.gage_name = self.metadata.gage_name
-
+        
         rows = []
         variable_names = {}
-        for ts in root.findall(".//ns1:timeSeries", ns):
-            
+        for ts in timeseries:
             code = ts.findtext(".//ns1:variableCode", namespaces=ns)
             variable_name = ts.findtext(".//ns1:variableName", namespaces=ns)
             statistic = ts.findtext(".//ns1:option[@name='Statistic']", namespaces=ns)
@@ -132,7 +136,9 @@ class RiverData:
         df_wide.columns = ['_'.join(a) for a in df_wide.columns.to_flat_index()]
         
         # Discharge will always be a daily mean
-        df_wide.rename(columns={'discharge_cfs_mean': 'discharge_cfs'}, inplace=True)
+        df_wide = df_wide.rename(
+            columns={'discharge_cfs_mean': 'discharge_cfs'}
+        )
 
         # Sort chronologically
         df_wide = df_wide.sort_index()
@@ -203,7 +209,7 @@ class RiverData:
 
         df["water_doy"] = (df.index - wy_start).dt.days + 1
 
-        df['day_of_year'] = df.index.dayofyear
+        df['day_of_year'] = df.index.day_of_year
 
         # Convert all columns to nullable Int64
         for col in self.NON_VARIABLE_COLUMNS:
@@ -317,10 +323,10 @@ class RiverData:
         if variable not in self.data.columns:
             raise ValueError(f"{variable} not found in dataset.")
 
-        df = self.data.copy()
-
-        if "water_year" not in df.columns:
+        if "water_year" not in self.data.columns:
             self.get_water_year()
+            
+        df = self.data.copy()
 
         df["month"] = df.index.month
 
@@ -450,8 +456,10 @@ class RiverData:
         :returns: The path to the saved CSV file
         :rtype: pathlib.Path
         """
-        if self.data is None:
-            raise ValueError("No data loaded to save.")
+        if not isinstance(self.data, pd.DataFrame):
+            raise ValueError(
+                f"data must be pandas.DataFrame, not {type(self.data)}"
+            )
 
         directory = Path(out_dir) / self.gage_id
         directory.mkdir(parents=True, exist_ok=True)
@@ -735,9 +743,10 @@ class HydroAnalyzer:
             incomplete = self.river.incomplete_months(variable)
             result.loc[incomplete] = pd.NA
 
-        result = result.rename(f"{variable}_{stat}")
+        if not stat == 'all':
+            result = result.rename(f"{variable}_{stat}")
 
-        if stat == "all" or not pivot:
+        if stat == 'all' or not pivot:
             return result.reset_index()
 
         # Pivot to water_year x month matrix
@@ -751,9 +760,8 @@ class HydroAnalyzer:
             1:"Jan",2:"Feb",3:"Mar",4:"Apr",5:"May",6:"Jun",
             7:"Jul",8:"Aug",9:"Sep",10:"Oct",11:"Nov",12:"Dec"
         }
-        result.rename(columns=month_names, inplace=True)
 
-        return result
+        return result.rename(columns=month_names)
 
 
     def spring_pulse(
@@ -840,17 +848,16 @@ class HydroAnalyzer:
         df = self.river.data
 
         centers_of_mass = {}
+
+        # Calculate missing days for each water year
+        missing_days = self.river.missing_days(
+            'discharge_cfs', 
+            within_record=False
+        )
+
         for water_year, df in self.river.data.groupby("water_year"):
 
-            # --- Check full year length (365 or 366 days) ---
-            start = df.index.min()
-            end = df.index.max()
-            expected_days = (end - start).days + 1
-            if len(df) != expected_days:
-                centers_of_mass[water_year] =  pd.NA
-                continue
-
-            if df.discharge_cfs.isna().any():
+            if missing_days.loc[water_year, 'missing_days'] > 0:
                 centers_of_mass[water_year] =  pd.NA
                 continue
 
@@ -865,7 +872,7 @@ class HydroAnalyzer:
             center_day = int(round(numerator / denominator))
 
             # Convert back to calendar date
-            center_date = start + pd.Timedelta(days=center_day - 1)
+            center_date = df.index.min() + pd.Timedelta(days=center_day - 1)
 
             centers_of_mass[water_year] = center_date
 
@@ -926,6 +933,6 @@ class HydroAnalyzer:
                 .loc[:, ['month', 'month_name']]
                 .set_index('month')['month_name']
         )
-        fractional_flow.rename(columns=month_names, inplace=True)
+        fractional_flow = fractional_flow.rename(columns=month_names)
 
         return self.ensure_annual_result_range(fractional_flow)

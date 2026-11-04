@@ -76,11 +76,14 @@ class Metadata:
 
     def pretty_print(self, all: Optional[bool]=False) -> str:
         
-        fetched_date = dt.datetime.fromisoformat(self.fetched_at)\
-            .strftime('%B %d, %Y %I:%M %p')
+        if not self.fetched_at:
+            fetched_date = None
+        else:
+            fetched_date = dt.datetime.fromisoformat(self.fetched_at)\
+                .strftime('%B %d, %Y %I:%M %p')
 
         if all:
-            return json.dumps(self.as_dict(), indent=4)
+            return json.dumps(self.to_dict(), indent=4)
         else:
             return (
                 'Hydroanalyze Metadata\n'
@@ -197,7 +200,7 @@ class USGSMetadata(Metadata):
             if stat and stat not in raw["variables"][code]["statistics"]:
                 raw["variables"][code]["statistics"].append(stat)
         
-        site_properties = site['properties']
+        site_properties = site.get('properties', {})
         meta = {
             "gage_name":    site.get("site_name"),
             "gage_id":      site.get("site_code") or gage_id,
