@@ -75,14 +75,18 @@ class RiverData:
 
         ns = XML_NAMESPACES
         root = ET.fromstring(xml_bytes)
-
+        timeseries = root.findall(".//ns1:timeSeries", ns)
+        if len(timeseries) == 0:
+            raise ValueError(
+                f'No timeseries data found for gage ID {self.gage_id}'
+            )
+        
         self._metadata = USGSMetadata.from_xml(root)
         self.gage_name = self.metadata.gage_name
-
+        
         rows = []
         variable_names = {}
-        for ts in root.findall(".//ns1:timeSeries", ns):
-            
+        for ts in timeseries:
             code = ts.findtext(".//ns1:variableCode", namespaces=ns)
             variable_name = ts.findtext(".//ns1:variableName", namespaces=ns)
             statistic = ts.findtext(".//ns1:option[@name='Statistic']", namespaces=ns)
