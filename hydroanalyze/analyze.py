@@ -321,10 +321,10 @@ class RiverData:
         if variable not in self.data.columns:
             raise ValueError(f"{variable} not found in dataset.")
 
-        df = self.data.copy()
-
         if "water_year" not in df.columns:
             self.get_water_year()
+            
+        df = self.data.copy()
 
         df["month"] = df.index.month
 
