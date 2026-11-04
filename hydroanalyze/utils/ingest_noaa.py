@@ -153,10 +153,6 @@ def read_noaa_file(file_path: Path, comment_char: Optional[str]) -> pd.DataFrame
     if df.empty:
         raise ValueError('file contains no data rows')
 
-    missing = [c for c in COLUMNS if c not in df.columns]
-    if missing:
-        raise ValueError(f'missing expected columns: {missing}')
-
     df = df[COLUMNS].copy()
 
     if df[['LID', 'PE', 'Obstime']].isna().any().any():
@@ -164,10 +160,6 @@ def read_noaa_file(file_path: Path, comment_char: Optional[str]) -> pd.DataFrame
     for col in ('LID', 'PE'):
         df[col] = df[col].astype(str).str.strip()
 
-    try:
-        df['Obstime'] = pd.to_datetime(df['Obstime'])
-    except Exception as e:
-        raise ValueError(f'unparseable Obstime values: {e}') from e
     if df['Obstime'].dt.tz is not None:
         # Store everything as naive UTC so timestamps compare consistently
         df['Obstime'] = df['Obstime'].dt.tz_convert('UTC').dt.tz_localize(None)
