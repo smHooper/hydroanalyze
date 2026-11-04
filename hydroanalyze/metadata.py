@@ -200,7 +200,7 @@ class USGSMetadata(Metadata):
             if stat and stat not in raw["variables"][code]["statistics"]:
                 raw["variables"][code]["statistics"].append(stat)
         
-        site_properties = site['properties']
+        site_properties = site.get('properties', {})
         meta = {
             "gage_name":    site.get("site_name"),
             "gage_id":      site.get("site_code") or gage_id,
