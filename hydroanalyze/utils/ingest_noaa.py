@@ -289,8 +289,14 @@ def write_csv_atomic(df: pd.DataFrame, path: Path) -> None:
     tmp.replace(path)
 
 
+def close_logging() -> None:
+    for handler in list(log.handlers):
+        log.removeHandler(handler)
+        handler.close()
+
+
 def setup_logging(log_file: Optional[Path]) -> None:
-    log.handlers.clear()
+    close_logging()
     log.setLevel(logging.INFO)
     log.propagate = False
     console = logging.StreamHandler(sys.stdout)
@@ -307,7 +313,7 @@ def setup_logging(log_file: Optional[Path]) -> None:
 # --------------------------------------------------------------------------
 # Main
 # --------------------------------------------------------------------------
-def ingest(
+def _ingest(
         search_dir: str | PathLike,
         search_pattern: str = DEFAULT_SEARCH_PATTERN,
         config_path: Optional[str | PathLike] = None,
@@ -480,6 +486,30 @@ def ingest(
             gage_id, p['n_added'], p['n_identical'], len(p['changed'])
         )
     return 1 if bad_files else 0
+
+
+def ingest(
+        search_dir: str | PathLike,
+        search_pattern: str = DEFAULT_SEARCH_PATTERN,
+        config_path: Optional[str | PathLike] = None,
+        comment_char: Optional[str] = '#',
+        overwrite_gages: Iterable[str] = (),
+        dry_run: bool = False,
+        skip_bad_files: bool = False,
+    ) -> int:
+    """Wrapper to ensure logging is always closed"""
+    try:
+        return _ingest(
+            search_dir=search_dir,
+            search_pattern=search_pattern,
+            config_path=config_path,
+            comment_char=comment_char,
+            overwrite_gages=overwrite_gages,
+            dry_run=dry_run,
+            skip_bad_files=skip_bad_files,
+        )
+    finally:
+        close_logging()
 
 
 def cli() -> None:
