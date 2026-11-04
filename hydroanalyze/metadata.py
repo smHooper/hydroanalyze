@@ -83,7 +83,7 @@ class Metadata:
                 .strftime('%B %d, %Y %I:%M %p')
 
         if all:
-            return json.dumps(self.as_dict(), indent=4)
+            return json.dumps(self.to_dict(), indent=4)
         else:
             return (
                 'Hydroanalyze Metadata\n'
