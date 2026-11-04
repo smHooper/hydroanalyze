@@ -34,6 +34,16 @@ def full_river(river_factory):
     )
     return river
 
+@pytest.fixture
+def empty_river(river_factory):
+    """River with nothing but null values"""
+    river = river_factory(start='2020-10-01', end='2022-09-30', value=pd.NA)
+    river._metadata = Metadata(
+        gage_id='TEST',
+        gage_name='Test River',
+        fetched_at='2026-01-05T15:30:00+00:00',
+    )
+    return river
 
 @pytest.fixture
 def stub_load(monkeypatch):
@@ -359,6 +369,13 @@ class TestInfo:
 
         assert result.exit_code == 0, result.output
         assert 'No metadata found for this gage' in result.output
+
+    def test_empty_missing_days_result(self, stub_load, empty_river):
+        stub_load(empty_river)
+        result = runner.invoke(app, ['info', 'TEST'])
+
+        assert result.exit_code == 0, result.output
+        assert 'WARNING: No valid data found for any variable' in result.output
 
 
 # ----------------------------------------------------------------------

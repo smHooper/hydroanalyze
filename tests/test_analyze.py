@@ -348,7 +348,7 @@ class TestToCsv:
     def test_invalid_data_raises(self, tmp_path, river_factory):
         river = river_factory(values=[1.0])
         river.data = None
-        with pytest.raises(ValueError, match='No data loaded to save'):
+        with pytest.raises(ValueError, match='data must be pandas.DataFrame'):
             river.to_csv(tmp_path)
             
     def test_can_skip_metadata(self, tmp_path, river_factory):
